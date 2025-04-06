@@ -1,0 +1,15 @@
+[project]
+name = "p2pool-exporter"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "prometheus-client>=0.21.1",
+]
+
+[project.scripts]
+p2pool-exporter = "p2pool_exporter:__main__.run"
+
+[tool.uv.sources]
+observlib = { git = "https://github.com/ForgottenBeast/observlib.git", subdirectory = "lib" }
