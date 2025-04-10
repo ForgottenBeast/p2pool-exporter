@@ -28,6 +28,7 @@
         nixpkgs.follows = "nixpkgs";
       };
     };
+    fb-observlib.url = "github:ForgottenBeast/observlib";
 
   };
 

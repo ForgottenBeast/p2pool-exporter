@@ -3,13 +3,14 @@
   lib,
   pkgs,
   package_name,
+  path_prefix ? "/",
 }:
 rec {
   # Load a uv workspace from a workspace root.
   # Uv2nix treats all uv projects as workspace projects.
   inherit package_name;
   workspace = inputs.uv2nix.lib.workspace.loadWorkspace {
-    workspaceRoot = lib.snowfall.fs.get-file "/${package_name}";
+    workspaceRoot = lib.snowfall.fs.get-file "${path_prefix}${package_name}";
   };
 
   # Create package overlay from workspace.
@@ -30,8 +31,15 @@ rec {
   # This is an additional overlay implementing build fixups.
   # See:
   # - https://pyproject-nix.github.io/uv2nix/FAQ.html
-  pyprojectOverrides = _final: _prev: {
+  pyprojectOverrides = final: prev: {
     # Implement build fixups here.
+    observlib = prev.observlib.overrideAttrs (old: {
+      nativeBuildInputs =
+        old.nativeBuildInputs
+        ++ [ prev.pkgs.python312Packages.setuptools ]
+        ++ (final.resolveBuildSystem { setuptools = [ ]; });
+    });
+
   };
 
   # Use Python 3.12 from nixpkgs
