@@ -1,6 +1,7 @@
 import argparse
 import logging as l
 import requests
+from observlib.client import OBSERVER, Observer
 
 
 def run():
