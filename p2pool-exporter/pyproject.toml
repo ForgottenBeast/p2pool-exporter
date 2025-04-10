@@ -5,7 +5,9 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "observlib>=0.1.0",
     "prometheus-client>=0.21.1",
+    "requests>=2.32.3",
 ]
 
 [project.scripts]
