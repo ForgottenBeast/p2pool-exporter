@@ -2,27 +2,22 @@ import argparse
 import asyncio
 import aiohttp
 import logging as l
-from prometheus_client import start_http_server, Counter, Gauge
+from prometheus_client import start_http_server, Histogram, Counter
 import time as t
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
 
-# Set logging to DEBUG for better visibility
-l.basicConfig(level=l.DEBUG)
-
-async def get_miner_info(session, miner, query_counter, error_counter, latency_gauge):
+async def get_miner_info(session, miner, query_counter, error_counter, latency):
     labels = {"endpoint": "/api/miner_info"}
     start = t.perf_counter()
 
-    # Correctly make the request while keeping the session open
     async with session.get(f'https://mini.p2pool.observer{labels["endpoint"]}/{miner}') as response:
         data = await response.json()  # Await the actual response body (as JSON)
         
     end = t.perf_counter()
 
-    # Record metrics
     query_counter.labels(**labels).inc()
-    latency_gauge.labels(**labels).set(end - start)
+    #latency_gauge.labels(**labels).set(end - start)
 
     if response.status != 200:
         error_counter.labels(**labels).inc()
@@ -32,9 +27,9 @@ async def get_miner_info(session, miner, query_counter, error_counter, latency_g
 
 # Collect API data and handle async calls properly
 async def collect_api_data(args):
-    query_counter = Counter('p2pool_total_queries', 'Total queries run by p2pool exporter')
-    error_counter = Counter('p2pool_total_errors', 'Total query errors from p2pool exporter')
-    latency_gauge = Gauge('p2pool_api_latency', 'Measured latency when calling the p2pool API')
+    query_counter = Counter('p2pool_total_queries', 'Total queries run by p2pool exporter', ["endpoint"])
+    error_counter = Counter('p2pool_total_errors', 'Total query errors from p2pool exporter', ["endpoint"])
+    latency = Histogram('p2pool_api_latency', 'Measured latency when calling the p2pool API')
 
     # Start Prometheus server
     start_http_server(args.port)
@@ -42,7 +37,7 @@ async def collect_api_data(args):
     # Create the session once and pass it to each function call
     async with aiohttp.ClientSession() as session:
         # Query each miner wallet asynchronously
-        tasks = [get_miner_info(session, miner, query_counter, error_counter, latency_gauge) for miner in args.wallets]
+        tasks = [get_miner_info(session, miner, query_counter, error_counter, latency) for miner in args.wallets]
         
         # Await all tasks (don't forget this!)
         results = await asyncio.gather(*tasks)
@@ -51,17 +46,18 @@ async def collect_api_data(args):
         l.debug(f"Collected data: {results}")
 
 # Function to run APScheduler jobs
-def schedule_jobs(args):
+async def schedule_jobs(args):
     # Create the scheduler
     scheduler = AsyncIOScheduler()
 
     # Schedule collect_api_data() to run every X minutes
     scheduler.add_job(
-        lambda: asyncio.create_task(collect_api_data(args)),
+         collect_api_data, 
         'interval',  # Run periodically
-        minutes=args.tts,  # Every X minutes
+        seconds=args.tts,  # Every X minutes
         id='collect_data_job',  # Job identifier
         misfire_grace_time=10,  # Handle job misfires gracefully
+        args = [args],
     )
 
     # Add a listener to log job execution outcomes
@@ -75,12 +71,10 @@ def schedule_jobs(args):
 
     # Start the scheduler and run the asyncio loop together
     scheduler.start()
+    print("Press Ctrl+{} to exit")
+    while True:
+        await asyncio.sleep(1000)
 
-    # Run the asyncio loop
-    try:
-        asyncio.get_event_loop().run_forever()  # Keep the loop running
-    except (KeyboardInterrupt, SystemExit):
-        pass
 
 def run():
     parser = argparse.ArgumentParser()
@@ -96,7 +90,7 @@ def run():
     l.basicConfig(level=args.log_level)
 
     # Schedule jobs
-    schedule_jobs(args)
+    asyncio.run(schedule_jobs(args))
 
 if __name__ == "__main__":
     run()
