@@ -2,42 +2,48 @@ import argparse
 import asyncio
 import aiohttp
 import logging as l
-from prometheus_client import start_http_server, Histogram, Counter
-import time as t
+from prometheus_client import start_http_server, Histogram, Counter, Gauge
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
 
-async def get_miner_info(session, miner, query_counter, error_counter, latency):
-    labels = {"endpoint": "/api/miner_info"}
-    start = t.perf_counter()
+async def query_api(session, endpoint, metrics):
+    labels = {"endpoint": endpoint}
+    metrics["query_counter"].labels(**labels).inc()
+    with metrics["latency"].labels(**labels).time():
+        async with session.get(endpoint) as response:
+            result = await response.json()  # Await the actual response body (as JSON)
 
-    async with session.get(f'https://mini.p2pool.observer{labels["endpoint"]}/{miner}') as response:
-        data = await response.json()  # Await the actual response body (as JSON)
+            if "status" in result and result.status != 200:
+                metrics["error_counter"].labels(**labels).inc()
+            return result
+
+async def get_miner_info(session,api, miner,metrics):
+    response = await query_api(session, "{}{}/{}".format(api, "/api/miner_info", miner),metrics)
         
-    end = t.perf_counter()
+    total_shares = 0
+    for s in response["shares"]:
+        total_shares += s["shares"]
 
-    query_counter.labels(**labels).inc()
-    #latency_gauge.labels(**labels).set(end - start)
+    label = { "miner": miner}
+    metrics["total_shares"].labels(**label).set(total_shares)
+    metrics["last_share_height"].labels(**label).set(response["last_share_height"])
+    metrics["last_share_timestamp"].labels(**label).set(response["last_share_timestamp"])
 
-    if response.status != 200:
-        error_counter.labels(**labels).inc()
-        return {}
-    else:
-        return data
+async def get_sideblocks(session,api, miner, metrics):
+    response = await query_api(session, "{}{}/{}".format(api, "/api/side_blocks_in_window", miner),metrics)
+    label = { "miner": miner}
+    metrics["sideblocks_in_window"].labels(**label).set(len(response))
+
 
 # Collect API data and handle async calls properly
-async def collect_api_data(args):
-    query_counter = Counter('p2pool_total_queries', 'Total queries run by p2pool exporter', ["endpoint"])
-    error_counter = Counter('p2pool_total_errors', 'Total query errors from p2pool exporter', ["endpoint"])
-    latency = Histogram('p2pool_api_latency', 'Measured latency when calling the p2pool API')
+async def collect_api_data(args, metrics):
 
     # Start Prometheus server
-    start_http_server(args.port)
 
     # Create the session once and pass it to each function call
     async with aiohttp.ClientSession() as session:
         # Query each miner wallet asynchronously
-        tasks = [get_miner_info(session, miner, query_counter, error_counter, latency) for miner in args.wallets]
+        tasks = [get_miner_info(session, args.endpoint, miner,metrics) for miner in args.wallets] + [get_sideblocks(session, args.endpoint,  miner,metrics) for miner in args.wallets]
         
         # Await all tasks (don't forget this!)
         results = await asyncio.gather(*tasks)
@@ -45,9 +51,34 @@ async def collect_api_data(args):
         # Optionally process results here if needed
         l.debug(f"Collected data: {results}")
 
-# Function to run APScheduler jobs
+
+async def websocket_listener(url, metrics):
+    endpoint = "{}/api/events".format(url)
+    async with aiohttp.ClientSession() as session:
+        async with session.ws_connect(endpoint) as ws:
+            async for msg in ws:
+                print(msg)
+
 async def schedule_jobs(args):
     # Create the scheduler
+
+    metrics = {
+        "query_counter" : Counter('p2pool_total_queries', 'Total queries run by p2pool exporter', ["endpoint"]),
+        "error_counter" : Counter('p2pool_total_errors', 'Total query errors from p2pool exporter', ["endpoint"]),
+        "latency" : Histogram('p2pool_api_latency', 'Measured latency when calling the p2pool API', ["endpoint"]),
+        "total_shares" : Gauge('p2pool_total_shares', 'Total shares mined', ["miner"]),
+        "last_share_height" : Gauge('p2pool_last_share_height', 'last share height', ["miner"]),
+        "last_share_timestamp" : Gauge('p2pool_last_share_timestamp', 'last share timestamp', ["miner"]),
+        "sideblocks_in_window" : Gauge('p2pool_sideblocks','number of sideblocks in current window', ["miner"]),
+        "payouts" : Gauge('p2pool_payouts','p2pool payouts', ["miner"]),
+        "found_blocks" : Counter('p2pool_found_blocks','pool-wide found blocks'),
+        "main_difficulty" : Gauge('p2pool_main_difficulty','p2pool payouts', ["miner"]),
+        "p2pool_difficulty" : Gauge('p2pool_sidechain_difficulty','p2pool payouts', ["miner"]),
+        "ws_event_counter": Counter("p2pool_ws_events","messages received through the websocket API")
+    }
+
+
+
     scheduler = AsyncIOScheduler()
 
     # Schedule collect_api_data() to run every X minutes
@@ -57,7 +88,7 @@ async def schedule_jobs(args):
         seconds=args.tts,  # Every X minutes
         id='collect_data_job',  # Job identifier
         misfire_grace_time=10,  # Handle job misfires gracefully
-        args = [args],
+        args = [args, metrics],
     )
 
     # Add a listener to log job execution outcomes
@@ -71,9 +102,7 @@ async def schedule_jobs(args):
 
     # Start the scheduler and run the asyncio loop together
     scheduler.start()
-    print("Press Ctrl+{} to exit")
-    while True:
-        await asyncio.sleep(1000)
+    await websocket_listener(args.endpoint, metrics)
 
 
 def run():
@@ -87,8 +116,8 @@ def run():
     parser.add_argument("-P", "--port", help="Prometheus port to expose metrics", dest="port", action="store", default=9093, type=int)
 
     args = parser.parse_args()
+    start_http_server(args.port)
     l.basicConfig(level=args.log_level)
-
     # Schedule jobs
     asyncio.run(schedule_jobs(args))
 
