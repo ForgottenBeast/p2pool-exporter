@@ -34,6 +34,8 @@ async def get_sideblocks(session,api, miner, metrics):
     label = { "miner": miner}
     metrics["sideblocks_in_window"].labels(**label).set(len(response))
 
+async def get_payouts(session,api, miner, metrics):
+    response = await query_api(session, "{}{}/{}".format(api, "/api/side_blocks_in_window", miner),metrics)
 
 # Collect API data and handle async calls properly
 async def collect_api_data(args, metrics):
