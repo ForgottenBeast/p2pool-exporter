@@ -59,6 +59,18 @@ async def websocket_listener(url, metrics):
     async with aiohttp.ClientSession() as session:
         async with session.ws_connect(endpoint) as ws:
             async for msg in ws:
+                metrics["ws_event_counter"].inc()
+                if msg.type == "side_block":
+                    metrics.main_difficulty.set(msg.side_block.main_difficulty)
+                    metrics.p2pool_difficulty.set(msg.side_block.difficulty)
+                    metrics.side_blocks.inc()
+                elif msg.type == "found_block":
+                    metrics.found_blocks.inc()
+                    metrics.main_difficulty.set(msg.found_block.main_block.difficulty)
+                    metrics.p2pool_difficulty.set(msg.found_block.difficulty)
+                    
+
+
                 print(msg)
 
 async def schedule_jobs(args):
@@ -74,6 +86,7 @@ async def schedule_jobs(args):
         "sideblocks_in_window" : Gauge('p2pool_sideblocks','number of sideblocks in current window', ["miner"]),
         "payouts" : Gauge('p2pool_payouts','p2pool payouts', ["miner"]),
         "found_blocks" : Counter('p2pool_found_blocks','pool-wide found blocks'),
+        "side_blocks" : Counter('p2pool_blocks','pool-wide side blocks'),
         "main_difficulty" : Gauge('p2pool_main_difficulty','p2pool payouts', ["miner"]),
         "p2pool_difficulty" : Gauge('p2pool_sidechain_difficulty','p2pool payouts', ["miner"]),
         "ws_event_counter": Counter("p2pool_ws_events","messages received through the websocket API")
