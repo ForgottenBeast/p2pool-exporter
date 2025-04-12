@@ -1,8 +1,11 @@
-from opentelemetry import trace
+from opentelemetry import trace, metrics
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.exporter.prometheus import PrometheusMetricReader
 from opentelemetry.instrumentation.asyncio import AsyncioInstrumentor
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
 from opentelemetry.instrumentation.urllib import URLLibInstrumentor
+from opentelemetry.sdk.metrics import MeterProvider, ConsoleMetricExporter
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import (
@@ -10,7 +13,6 @@ from opentelemetry.sdk.trace.export import (
 )
 
 from opentelemetry.trace.span import format_trace_id
-from prometheus_client import start_http_server, Histogram, Counter, Gauge
 import pyroscope
 
 
@@ -27,6 +29,19 @@ AsyncioInstrumentor().instrument()
 
 # Creates a tracer from the global tracer provider
 tracer = None
+
+metric_reader = PeriodicExportingMetricReader(ConsoleMetricExporter())
+provider = MeterProvider(metric_readers=[metric_reader])
+
+# Sets the global default meter provider
+metrics.set_meter_provider(provider)
+
+# Creates a meter from the global meter provider
+meter = metrics.get_meter("p2pool-exporter")
+
+def get_meter():
+    global meter
+    return meter
 
 
 def get_tracer():
@@ -50,40 +65,53 @@ def configure_otlp(service_name, server):
 
 def get_metrics():
     return {
-        "query_counter": Counter(
-            "p2pool_total_queries", "Total queries run by p2pool exporter", ["endpoint"]
+        "query_counter": 
+meter.create_counter(
+    "p2pool_total_queries", unit="1", description="total emitted queries"
+),
+
+        "error_counter": meter.create_counter(
+    "p2pool_total_errors", unit="1", description="total errors on queries"
+),
+
+        "latency": meter.create_histogram(
+    name="p2pool_api_latency",
+    unit="ms",
+    description="Measured latency when calling the p2pool API",
+),
+        "total_shares":meter.create_gauge(
+    name="total_shares",
+    unit="1",
+    description="Total shares mined"
+),
+
+        "last_share_height":meter.create_gauge(
+    name="p2pool_last_share_height",
+    unit="1",
+    description="last share height"
+),
+
+        "last_share_timestamp": meter.create_gauge(
+            name = "p2pool_last_share_timestamp", 
+            unit = "1",
+            description = "last share timestamp",
         ),
-        "error_counter": Counter(
-            "p2pool_total_errors",
-            "Total query errors from p2pool exporter",
-            ["endpoint"],
+        "sideblocks_in_window": meter.create_gauge(
+            name = "p2pool_sideblocks",
+            unit = "1",
+            description = "number of sideblocks in current window"
         ),
-        "latency": Histogram(
-            "p2pool_api_latency",
-            "Measured latency when calling the p2pool API",
-            ["endpoint"],
+        "payouts": meter.create_gauge(name = "p2pool_payouts", unit = "1", description = "p2pool payouts"),
+        "found_blocks": meter.create_counter(name = "p2pool_found_blocks", unit = "1", description= "pool-wide found blocks"),
+        "side_blocks": meter.create_counter(name = "p2pool_blocks", unit = "1", description =  "pool-wide side blocks"),
+        "main_difficulty": meter.create_gauge(name = "p2pool_main_difficulty", unit = "1", description =  "p2pool payouts"),
+        "p2pool_difficulty": meter.create_gauge(
+            name = "p2pool_sidechain_difficulty", description= "p2pool sidechain difficulty", unit = "1"
         ),
-        "total_shares": Gauge("p2pool_total_shares", "Total shares mined", ["miner"]),
-        "last_share_height": Gauge(
-            "p2pool_last_share_height", "last share height", ["miner"]
+        "ws_event_counter": meter.create_counter(
+            name = "p2pool_ws_events", unit = "1",description =  "messages received through the websocket API"
         ),
-        "last_share_timestamp": Gauge(
-            "p2pool_last_share_timestamp", "last share timestamp", ["miner"]
-        ),
-        "sideblocks_in_window": Gauge(
-            "p2pool_sideblocks", "number of sideblocks in current window", ["miner"]
-        ),
-        "payouts": Gauge("p2pool_payouts", "p2pool payouts", ["miner"]),
-        "found_blocks": Counter("p2pool_found_blocks", "pool-wide found blocks"),
-        "side_blocks": Counter("p2pool_blocks", "pool-wide side blocks"),
-        "main_difficulty": Gauge("p2pool_main_difficulty", "p2pool payouts", ["miner"]),
-        "p2pool_difficulty": Gauge(
-            "p2pool_sidechain_difficulty", "p2pool payouts", ["miner"]
-        ),
-        "ws_event_counter": Counter(
-            "p2pool_ws_events", "messages received through the websocket API", ["type"]
-        ),
-        "p2pool_hashrate": Gauge(
-            "p2pool_hashrate", "estimated hashrate per miner", ["miner"]
+        "p2pool_hashrate": meter.create_gauge(
+            name = "p2pool_hashrate", description = "estimated hashrate per miner", unit = "1",
         ),
     }
