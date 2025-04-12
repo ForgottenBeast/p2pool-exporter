@@ -3,7 +3,7 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.exporter.prometheus import PrometheusMetricReader
 from opentelemetry.instrumentation.asyncio import AsyncioInstrumentor
 from opentelemetry.instrumentation.urllib import URLLibInstrumentor
-from opentelemetry.sdk.metrics import MeterProvider, ConsoleMetricExporter
+from opentelemetry.sdk.metrics import MeterProvider 
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -23,7 +23,6 @@ URLLibInstrumentor().instrument(
     # Remove all query params from the URL attribute on the span.
     url_filter=strip_query_params,
 )
-LoggingInstrumentor(set_logging_format=True)
 AsyncioInstrumentor().instrument()
 
 # Creates a tracer from the global tracer provider
