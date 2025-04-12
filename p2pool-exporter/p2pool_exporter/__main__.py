@@ -1,4 +1,6 @@
 from opentelemetry import trace
+import json
+import time
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import (
@@ -65,7 +67,8 @@ async def get_sideblocks(session,api, miner, metrics):
 
 async def get_payouts(session,api, miner, metrics):
     with tracer.start_as_current_span("get_payouts") as span:
-        response = await query_api(session, "{}{}/{}".format(api, "/api/side_blocks_in_window", miner),metrics)
+        response = await query_api(session, "{}{}/{}?search_limit=1".format(api, "/api/payouts", miner),metrics)
+        l.info(json.dumps({ "miner": miner, "payout_id": response[0]["main_id"], "amount": response[0]["coinbase_reward"], "private_key": response[0]["coinbase_private_key"] }))
 
 async def collect_api_data(args, metrics):
     with tracer.start_as_current_span("collect_api_data") as span:
@@ -75,7 +78,7 @@ async def collect_api_data(args, metrics):
         # Create the session once and pass it to each function call
         async with aiohttp.ClientSession() as session:
             # Query each miner wallet asynchronously
-            tasks = [get_miner_info(session, args.endpoint, miner,metrics) for miner in args.wallets] + [get_sideblocks(session, args.endpoint,  miner,metrics) for miner in args.wallets]
+            tasks = [get_miner_info(session, args.endpoint, miner,metrics) for miner in args.wallets] + [get_sideblocks(session, args.endpoint,  miner,metrics) for miner in args.wallets] + [ get_payouts(session, args.endpoint, miner, metrics) for miner in args.wallets]
             
             # Await all tasks (don't forget this!)
             results = await asyncio.gather(*tasks)
@@ -83,27 +86,51 @@ async def collect_api_data(args, metrics):
             # Optionally process results here if needed
             l.debug(f"Collected data: {results}")
 
+def prune_shares(accepted_shares, window_seconds):
+    accepted_shares = list(filter(lambda share: share.timestamp < time.time() - window_seconds, accepted_shares))
 
-async def websocket_listener(url, metrics):
+
+def estimate_hashrate(accepted_shares, window_seconds=600):
+    now = time.time()
+    recent_shares = [s for s in accepted_shares if now - s["timestamp"] <= window_seconds]
+
+    total_difficulty = sum(s["difficulty"] for s in recent_shares)
+    return total_difficulty / window_seconds  # Hashrate in H/s
+
+async def websocket_listener(url, metrics, miners, window_seconds):
     endpoint = "{}/api/events".format(url)
+    accepted_shares = {}
+    for m in miners:
+        accepted_shares[m] = []
+
     async with aiohttp.ClientSession() as session:
         async with session.ws_connect(endpoint) as ws:
             async for msg in ws:
                 with tracer.start_as_current_span("ws_msg_recv") as span:
-                    print(format_trace_id(span.get_span_context().trace_id))
-                    metrics["ws_event_counter"].inc()
                     if msg.type == "side_block":
+                        metrics["ws_event_counter"].labels(type = "side_block").inc()
                         metrics.main_difficulty.set(msg.side_block.main_difficulty)
                         metrics.p2pool_difficulty.set(msg.side_block.difficulty)
                         metrics.side_blocks.inc()
+
+                        if msg.side_block.miner_address in miners:
+                            miner = msg.side_block.miner_address
+                            accepted_shares[miner].append({
+                                "timestamp":msg.side_block.timestamp,
+                                "difficulty":msg.side_block.difficulty
+                                })
+                            prune_shares(accepted_shares[miner], window_seconds)
+                            metrics.p2pool_hashrate.labels(miner=miner).set(estimate_hashrate(accepted_shares[miner], window_seconds))
+
+
                     elif msg.type == "found_block":
+                        metrics["ws_event_counter"].labels(type = "found_block").inc()
                         metrics.found_blocks.inc()
                         metrics.main_difficulty.set(msg.found_block.main_block.difficulty)
                         metrics.p2pool_difficulty.set(msg.found_block.difficulty)
+                    else:
+                        metrics["ws_event_counter"].labels(type = "orphaned_block").inc()
                     
-
-
-                print(msg)
 
 async def schedule_jobs(args):
     # Create the scheduler
@@ -122,35 +149,36 @@ async def schedule_jobs(args):
             "side_blocks" : Counter('p2pool_blocks','pool-wide side blocks'),
             "main_difficulty" : Gauge('p2pool_main_difficulty','p2pool payouts', ["miner"]),
             "p2pool_difficulty" : Gauge('p2pool_sidechain_difficulty','p2pool payouts', ["miner"]),
-            "ws_event_counter": Counter("p2pool_ws_events","messages received through the websocket API")
+            "ws_event_counter": Counter("p2pool_ws_events","messages received through the websocket API", ["type"]),
+            "p2pool_hashrate": Gauge('p2pool_hashrate', "estimated hashrate per miner", ["miner"]),
         }
 
 
 
-        scheduler = AsyncIOScheduler()
+    scheduler = AsyncIOScheduler()
 
-        # Schedule collect_api_data() to run every X minutes
-        scheduler.add_job(
-             collect_api_data, 
-            'interval',  # Run periodically
-            seconds=args.tts,  # Every X minutes
-            id='collect_data_job',  # Job identifier
-            misfire_grace_time=10,  # Handle job misfires gracefully
-            args = [args, metrics],
-        )
+    # Schedule collect_api_data() to run every X minutes
+    scheduler.add_job(
+         collect_api_data, 
+        'interval',  # Run periodically
+        seconds=args.tts,  # Every X minutes
+        id='collect_data_job',  # Job identifier
+        misfire_grace_time=10,  # Handle job misfires gracefully
+        args = [args, metrics],
+    )
 
-        # Add a listener to log job execution outcomes
-        def job_listener(event):
-            if event.exception:
-                l.error(f'Job {event.job_id} failed with exception: {event.exception}')
-            else:
-                l.info(f'Job {event.job_id} succeeded')
+    # Add a listener to log job execution outcomes
+    def job_listener(event):
+        if event.exception:
+            l.error(f'Job {event.job_id} failed with exception: {event.exception}')
+        else:
+            l.debug(f'Job {event.job_id} succeeded')
 
-        scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
+    scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
 
-        # Start the scheduler and run the asyncio loop together
-        scheduler.start()
-        await websocket_listener(args.endpoint, metrics)
+    # Start the scheduler and run the asyncio loop together
+    scheduler.start()
+    await websocket_listener(args.endpoint, metrics, args.wallets, args.window)
 
 
 def run():
@@ -162,6 +190,7 @@ def run():
     parser.add_argument("-o", "--otlp-server", help="OTLP server for spans", dest="otlp", default=None, action="store")
     parser.add_argument("-t", "--time-to-scrape", help="How many minutes between scrapes", dest="tts", default=5, action="store")
     parser.add_argument("-P", "--port", help="Prometheus port to expose metrics", dest="port", action="store", default=9093, type=int)
+    parser.add_argument("-W", "--window-seconds", help = "window to use for hashrate estimation", dest = "window", action = "store", default = 600, type = int)
 
     args = parser.parse_args()
     if args.pyroscope:
