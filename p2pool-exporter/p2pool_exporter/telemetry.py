@@ -28,7 +28,7 @@ AsyncioInstrumentor().instrument()
 # Creates a tracer from the global tracer provider
 tracer = None
 
-metric_reader = PeriodicExportingMetricReader(ConsoleMetricExporter())
+metric_reader = PeriodicExportingMetricReader(PrometheusMetricReader())
 provider = MeterProvider(metric_readers=[metric_reader])
 
 # Sets the global default meter provider
