@@ -33,6 +33,12 @@ mkShell {
       statix
       uv
       vulnix
+      (
+      python312Packages.opentelemetry-instrumentation.overridePythonAttrs (oldAttrs: {
+    propagatedBuildInputs = (oldAttrs.propagatedBuildInputs or []) ++ [
+        python312Packages.packaging
+    ];
+  }))
     ];
   shellHook = ''
     # Undo dependency propagation by nixpkgs.
