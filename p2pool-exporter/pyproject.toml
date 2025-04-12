@@ -8,12 +8,15 @@ dependencies = [
     "aiohttp>=3.11.16",
     "apscheduler>=3.11.0",
     "asyncio>=3.4.3",
-    "observlib>=0.1.0",
+    "opentelemetry-api>=1.32.0",
+    "opentelemetry-exporter-otlp>=1.32.0",
+    "opentelemetry-instrumentation-asyncio>=0.53b0",
+    "opentelemetry-instrumentation-logging>=0.53b0",
+    "opentelemetry-instrumentation-urllib>=0.53b0",
+    "opentelemetry-sdk>=1.32.0",
     "prometheus-client>=0.21.1",
+    "pyroscope-io>=0.8.9",
 ]
 
 [project.scripts]
 p2pool-exporter = "p2pool_exporter:__main__.run"
-
-[tool.uv.sources]
-observlib = { git = "https://github.com/ForgottenBeast/observlib.git", subdirectory = "lib" }
