@@ -1,8 +1,11 @@
-from .telemetry import get_tracer
-import logging as l
-import json
-import asyncio
 import aiohttp
+import asyncio
+import json
+import logging as l
+from opentelemetry import trace
+from opentelemetry.sdk.trace import Status, StatusCode
+
+from .telemetry import get_tracer
 from .utils import prune_shares, estimate_hashrate
 
 

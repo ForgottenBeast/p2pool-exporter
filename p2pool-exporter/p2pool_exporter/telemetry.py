@@ -1,18 +1,17 @@
-from prometheus_client import start_http_server, Histogram, Counter, Gauge
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from opentelemetry import trace
-from opentelemetry.sdk.resources import SERVICE_NAME, Resource
-from opentelemetry.sdk.trace import TracerProvider, Status, StatusCode
-from opentelemetry.sdk.trace.export import (
-    BatchSpanProcessor,
-    ConsoleSpanExporter,
-)
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-import pyroscope
 from opentelemetry.instrumentation.asyncio import AsyncioInstrumentor
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
 from opentelemetry.instrumentation.urllib import URLLibInstrumentor
+from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import (
+    BatchSpanProcessor,
+)
+
 from opentelemetry.trace.span import format_trace_id
+from prometheus_client import start_http_server, Histogram, Counter, Gauge
+import pyroscope
 
 
 def strip_query_params(url: str) -> str:
