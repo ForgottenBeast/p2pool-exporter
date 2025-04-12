@@ -2,7 +2,7 @@ from opentelemetry import trace
 import json
 import time
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
-from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace import TracerProvider, Status, StatusCode
 from opentelemetry.sdk.trace.export import (
     BatchSpanProcessor,
     ConsoleSpanExporter,
@@ -44,6 +44,9 @@ async def query_api(session, endpoint, metrics):
 
                 if "status" in result and result.status != 200:
                     metrics["error_counter"].labels(**labels).inc()
+                    current_span = trace.get_current_span()
+                    current_span.set_status(Status(StatusCode.ERROR))
+
                 return result
 
 async def get_miner_info(session,api, miner,metrics):
@@ -205,7 +208,7 @@ def run():
         global tracer
         tracer = trace.get_tracer(__name__)
 
-    start_http_server(args.port)
+    start_http_server(args.port, addr = "127.0.0.1")
     l.basicConfig(level=args.log_level)
     # Schedule jobs
     asyncio.run(schedule_jobs(args))
