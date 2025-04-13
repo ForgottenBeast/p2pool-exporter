@@ -4,7 +4,6 @@ import argparse
 import asyncio
 import logging as l
 from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
-from prometheus_client import start_http_server, Histogram, Counter, Gauge
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 
@@ -93,10 +92,10 @@ def run():
     parser.add_argument(
         "-P",
         "--port",
-        help="Prometheus port to expose metrics",
+        help="Prometheus port to expose metrics, leave to 0 to only upload through otlp",
         dest="port",
         action="store",
-        default=9093,
+        default=0,
         type=int,
     )
     parser.add_argument(
@@ -116,9 +115,11 @@ def run():
         )
 
     if args.otlp:
-        configure_otlp("p2pool_exporter", args.otlp)
+        configure_otlp(args.otlp)
 
-    start_http_server(args.port, addr="127.0.0.1")
+    if args.port != 0:
+        #start_http_server(args.port, addr="127.0.0.1")
+        pass
     l.basicConfig(level=args.log_level)
     # Schedule jobs
     asyncio.run(schedule_jobs(args))
