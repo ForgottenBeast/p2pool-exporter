@@ -550,6 +550,7 @@ dependencies = [
     { name = "opentelemetry-instrumentation-asyncio" },
     { name = "opentelemetry-instrumentation-urllib" },
     { name = "opentelemetry-sdk" },
+    { name = "prometheus-client" },
     { name = "pyroscope-io" },
 ]
 
@@ -564,6 +565,7 @@ requires-dist = [
     { name = "opentelemetry-instrumentation-asyncio", specifier = ">=0.53b0" },
     { name = "opentelemetry-instrumentation-urllib", specifier = ">=0.53b0" },
     { name = "opentelemetry-sdk", specifier = ">=1.32.0" },
+    { name = "prometheus-client", specifier = ">=0.21.1" },
     { name = "pyroscope-io", specifier = ">=0.8.9" },
 ]
 
