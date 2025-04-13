@@ -95,7 +95,7 @@ def run():
         help="Prometheus port to expose metrics, leave to 0 to only upload through otlp",
         dest="port",
         action="store",
-        default=0,
+        default=9093,
         type=int,
     )
     parser.add_argument(
@@ -117,9 +117,7 @@ def run():
     if args.otlp:
         configure_otlp(args.otlp)
 
-    if args.port != 0:
-        #start_http_server(args.port, addr="127.0.0.1")
-        pass
+    start_http_server(args.port, addr="127.0.0.1")
     l.basicConfig(level=args.log_level)
     # Schedule jobs
     asyncio.run(schedule_jobs(args))

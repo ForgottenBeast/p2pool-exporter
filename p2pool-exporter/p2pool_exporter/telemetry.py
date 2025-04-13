@@ -1,18 +1,20 @@
+from prometheus_client import start_http_server
 from opentelemetry import trace, metrics
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.instrumentation.asyncio import AsyncioInstrumentor
 from opentelemetry.instrumentation.urllib import URLLibInstrumentor
 from opentelemetry.sdk.metrics import MeterProvider 
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.exporter.prometheus import PrometheusMetricReader
 from opentelemetry.sdk.trace.export import (
     BatchSpanProcessor,
 )
 from opentelemetry.sdk.metrics.export import (
     PeriodicExportingMetricReader,
 )
+from opentelemetry.sdk.metrics import AlwaysOnExemplarFilter, ExemplarReservoir
 
 import pyroscope
 
@@ -63,8 +65,9 @@ def configure_otlp(server):
     trace.set_tracer_provider(tracerProvider)
     tracer = trace.get_tracer(__name__)
 
-    metric_reader = PeriodicExportingMetricReader(OTLPMetricExporter(endpoint = "http://{}/v1/metrics".format(server)), export_interval_millis = 10000)
-    provider = MeterProvider(metric_readers=[metric_reader])
+    metric_reader = PeriodicExportingMetricReader(PrometheusMetricReader())
+
+    provider = MeterProvider(metric_readers=[metric_reader], exemplar_filter=AlwaysOnExemplarFilter())
 
     # Sets the global default meter provider
     metrics.set_meter_provider(provider)
