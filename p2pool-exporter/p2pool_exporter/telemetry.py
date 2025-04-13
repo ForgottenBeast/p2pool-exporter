@@ -17,11 +17,14 @@ from opentelemetry.sdk.metrics.export import (
 import pyroscope
 
 
-def get_current_trace_id():
+def get_current_trace_and_span_id():
     span = trace.get_current_span()
     if span and span.get_span_context().is_valid:
-        return format(span.get_span_context().trace_id, '032x')  # Convert to 32-character hex string
-    return "none"
+        return (
+            format(span.get_span_context().trace_id, '032x'),  # Convert to 32-character hex string
+            format(span.get_span_context().span_id, '016x')   # Convert to 16-character hex string
+        )
+    return ("none", "none")
 
 def strip_query_params(url: str) -> str:
     return url.split("?")[0]
