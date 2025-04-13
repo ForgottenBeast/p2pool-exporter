@@ -1,3 +1,4 @@
+import time
 import aiohttp
 import asyncio
 import json
@@ -5,30 +6,32 @@ import logging as l
 from opentelemetry import trace
 from opentelemetry.sdk.trace import Status, StatusCode
 
-from .telemetry import get_tracer
+from .telemetry import get_tracer, get_current_trace_id
 from .utils import prune_shares, estimate_hashrate
 
 
 async def query_api(session, endpoint, metrics):
-    with get_tracer().start_as_current_span("query_api") as span:
-        labels = {"endpoint": endpoint}
-        metrics["query_counter"].labels(**labels).inc()
-        with metrics["latency"].labels(**labels).time():
-            async with session.get(endpoint) as response:
-                result = (
-                    await response.json()
-                )  # Await the actual response body (as JSON)
+    with get_tracer().start_as_current_span("query_api"):
+        trace_id = get_current_trace_id()
+        labels = {"endpoint": endpoint,  "trace_id": trace_id}
+        metrics["query_counter"].add(1,attributes = labels)
+        start = time.perf_counter()
+        async with session.get(endpoint) as response:
+            result = (
+                await response.json()
+            )  # Await the actual response body (as JSON)
 
-                if "status" in result and result.status != 200:
-                    metrics["error_counter"].labels(**labels).inc()
-                    current_span = trace.get_current_span()
-                    current_span.set_status(Status(StatusCode.ERROR))
+        metrics["latency"].record(time.perf_counter() - start, attributes = labels)
+        if "status" in result and result.status != 200:
+            metrics["error_counter"].add(1, attributes = labels)
+            current_span = trace.get_current_span()
+            current_span.set_status(Status(StatusCode.ERROR))
 
-                return result
+        return result
 
 
 async def get_miner_info(session, api, miner, metrics):
-    with get_tracer().start_as_current_span("get_miner_info") as span:
+    with get_tracer().start_as_current_span("get_miner_info"):
         response = await query_api(
             session, "{}{}/{}".format(api, "/api/miner_info", miner), metrics
         )
@@ -37,25 +40,30 @@ async def get_miner_info(session, api, miner, metrics):
         for s in response["shares"]:
             total_shares += s["shares"]
 
-        label = {"miner": miner}
-        metrics["total_shares"].labels(**label).set(total_shares)
-        metrics["last_share_height"].labels(**label).set(response["last_share_height"])
-        metrics["last_share_timestamp"].labels(**label).set(
-            response["last_share_timestamp"]
+        trace_id = get_current_trace_id()
+        label = {"miner": miner, "trace_id": trace_id}
+        metrics["total_shares"].set(total_shares, attributes = label)
+        metrics["last_share_height"].set(response["last_share_height"], attributes = label)
+        metrics["last_share_timestamp"].set(
+            response["last_share_timestamp"],
+            attributes = label
         )
 
 
 async def get_sideblocks(session, api, miner, metrics):
-    with get_tracer().start_as_current_span("get_sideblocks") as span:
+    with get_tracer().start_as_current_span("get_sideblocks"):
         response = await query_api(
             session, "{}{}/{}".format(api, "/api/side_blocks_in_window", miner), metrics
         )
-        label = {"miner": miner}
-        metrics["sideblocks_in_window"].labels(**label).set(len(response))
+
+        trace_id = get_current_trace_id()
+        label = {"miner": miner, "trace_id": trace_id }
+        metrics["sideblocks_in_window"].set(len(response), attributes=label)
 
 
 async def get_payouts(session, api, miner, metrics):
-    with get_tracer().start_as_current_span("get_payouts") as span:
+    with get_tracer().start_as_current_span("get_payouts"):
+        trace_id = get_current_trace_id()
         response = await query_api(
             session,
             "{}{}/{}?search_limit=1".format(api, "/api/payouts", miner),
@@ -68,13 +76,14 @@ async def get_payouts(session, api, miner, metrics):
                     "payout_id": response[0]["main_id"],
                     "amount": response[0]["coinbase_reward"],
                     "private_key": response[0]["coinbase_private_key"],
+                    "trace_id": trace_id,
                 }
             )
         )
 
 
 async def collect_api_data(args, metrics):
-    with get_tracer().start_as_current_span("collect_api_data") as span:
+    with get_tracer().start_as_current_span("collect_api_data"):
         # Start Prometheus server
 
         # Create the session once and pass it to each function call
@@ -110,35 +119,43 @@ async def websocket_listener(url, metrics, miners, window_seconds):
 
     async with aiohttp.ClientSession() as session:
         async with session.ws_connect(endpoint) as ws:
-            async for msg in ws:
-                with get_tracer().start_as_current_span("ws_msg_recv") as span:
-                    if msg.type == "side_block":
-                        metrics["ws_event_counter"].labels(type="side_block").inc()
-                        metrics.main_difficulty.set(msg.side_block.main_difficulty)
-                        metrics.p2pool_difficulty.set(msg.side_block.difficulty)
-                        metrics.side_blocks.inc()
+            async for wsmsg in ws:
+                with get_tracer().start_as_current_span("ws_msg_recv"):
+                    msg = wsmsg.json()
+                    trace_id = get_current_trace_id()
+                    label = { "trace_id": trace_id}
+                    if msg["type"] == "side_block":
+                        metrics["ws_event_counter"].add(1,attributes = {"type":"side_block"} | label)
+                        metrics["main_difficulty"].set(msg["side_block"]["main_difficulty"], attributes = label)
+                        metrics["p2pool_difficulty"].set(msg["side_block"]["difficulty"], attributes = label)
+                        metrics["side_blocks"].add(1, attributes = label)
 
-                        if msg.side_block.miner_address in miners:
-                            miner = msg.side_block.miner_address
+                        miner = msg["side_block"]["miner_address"]
+                        if miner in miners:
                             accepted_shares[miner].append(
                                 {
-                                    "timestamp": msg.side_block.timestamp,
-                                    "difficulty": msg.side_block.difficulty,
+                                    "timestamp": msg["side_block"]["timestamp"],
+                                    "difficulty": msg["side_block"]["difficulty"],
                                 }
                             )
                             prune_shares(accepted_shares[miner], window_seconds)
-                            metrics.p2pool_hashrate.labels(miner=miner).set(
+                            metrics["p2pool_hashrate"].set(
                                 estimate_hashrate(
                                     accepted_shares[miner], window_seconds
-                                )
+                                ),
+                                attributes = {"miner": miner} | label
                             )
 
-                    elif msg.type == "found_block":
-                        metrics["ws_event_counter"].labels(type="found_block").inc()
-                        metrics.found_blocks.inc()
-                        metrics.main_difficulty.set(
-                            msg.found_block.main_block.difficulty
+                    elif msg["type"] == "found_block":
+                        metrics["ws_event_counter"].add(1,attributes = {"type":"found_block"}|label)
+                        metrics["found_blocks"].add(1, attributes = label )
+                        metrics["main_difficulty"].set(
+                            msg["found_block"]["main_block"]["difficulty"], attributes = label
                         )
-                        metrics.p2pool_difficulty.set(msg.found_block.difficulty)
+                        metrics["p2pool_difficulty"].set(msg["found_block"]["difficulty"], attributes = label)
+                    elif msg["type"] == "orphaned_block":
+                        metrics["ws_event_counter"].add(1, attributes = {"type":"orphaned_block"}|label)
                     else:
-                        metrics["ws_event_counter"].labels(type="orphaned_block").inc()
+                        print("got type:{}".format(msg.type))
+                        print(msg)
+                        metrics["ws_event_counter"].add(1, attributes = {"type":"unknown_type"}|label)

@@ -1,6 +1,6 @@
 from opentelemetry import trace, metrics
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.exporter.prometheus import PrometheusMetricReader
+from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.instrumentation.asyncio import AsyncioInstrumentor
 from opentelemetry.instrumentation.urllib import URLLibInstrumentor
 from opentelemetry.sdk.metrics import MeterProvider 
@@ -10,10 +10,18 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import (
     BatchSpanProcessor,
 )
+from opentelemetry.sdk.metrics.export import (
+    PeriodicExportingMetricReader,
+)
 
-from opentelemetry.trace.span import format_trace_id
 import pyroscope
 
+
+def get_current_trace_id():
+    span = trace.get_current_span()
+    if span and span.get_span_context().is_valid:
+        return format(span.get_span_context().trace_id, '032x')  # Convert to 32-character hex string
+    return "none"
 
 def strip_query_params(url: str) -> str:
     return url.split("?")[0]
@@ -28,19 +36,13 @@ AsyncioInstrumentor().instrument()
 # Creates a tracer from the global tracer provider
 tracer = None
 
-metric_reader = PeriodicExportingMetricReader(PrometheusMetricReader())
-provider = MeterProvider(metric_readers=[metric_reader])
-
-# Sets the global default meter provider
-metrics.set_meter_provider(provider)
 
 # Creates a meter from the global meter provider
-meter = metrics.get_meter("p2pool-exporter")
+meter = None
 
 def get_meter():
     global meter
     return meter
-
 
 def get_tracer():
     global tracer
@@ -51,15 +53,23 @@ def configure_pyroscope(**kwargs):
     pyroscope.configure(**kwargs)
 
 
-def configure_otlp(service_name, server):
+def configure_otlp(server):
     global tracer
-    resource = Resource(attributes={SERVICE_NAME: service_name})
+    global meter
+    resource = Resource(attributes={SERVICE_NAME: "p2pool-exporter"})
     tracerProvider = TracerProvider(resource=resource)
-    processor = BatchSpanProcessor(OTLPSpanExporter(endpoint=server))
+    processor = BatchSpanProcessor(OTLPSpanExporter(endpoint="http://{}/v1/traces".format(server)))
     tracerProvider.add_span_processor(processor)
     trace.set_tracer_provider(tracerProvider)
     tracer = trace.get_tracer(__name__)
 
+    metric_reader = PeriodicExportingMetricReader(OTLPMetricExporter(endpoint = "http://{}/v1/metrics".format(server)), export_interval_millis = 10000)
+    provider = MeterProvider(metric_readers=[metric_reader])
+
+    # Sets the global default meter provider
+    metrics.set_meter_provider(provider)
+
+    meter = metrics.get_meter("p2pool-exporter")
 
 def get_metrics():
     return {
