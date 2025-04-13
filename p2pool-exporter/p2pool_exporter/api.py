@@ -6,7 +6,7 @@ import logging as l
 from opentelemetry import trace
 from opentelemetry.sdk.trace import Status, StatusCode
 
-from .telemetry import get_tracer, get_current_trace_and_span_id
+from .telemetry import get_tracer, get_current_trace_id
 from .utils import prune_shares, estimate_hashrate
 
 
