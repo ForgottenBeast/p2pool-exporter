@@ -14,7 +14,7 @@ from opentelemetry.sdk.trace.export import (
 from opentelemetry.sdk.metrics.export import (
     PeriodicExportingMetricReader,
 )
-from opentelemetry.sdk.metrics import AlwaysOnExemplarFilter, ExemplarReservoir
+from opentelemetry.sdk.metrics import AlwaysOnExemplarFilter
 
 import pyroscope
 
