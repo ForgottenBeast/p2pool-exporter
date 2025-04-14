@@ -18,9 +18,6 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import (
     BatchSpanProcessor,
 )
-from opentelemetry.sdk.metrics.export import (
-    PeriodicExportingMetricReader,
-)
 from opentelemetry.sdk.metrics import AlwaysOnExemplarFilter
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
