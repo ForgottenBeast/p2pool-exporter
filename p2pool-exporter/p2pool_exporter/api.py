@@ -65,7 +65,7 @@ async def get_payouts(session, api, miner, metrics):
             "{}{}/{}?search_limit=1".format(api, "/api/payouts", miner),
             metrics,
         )
-        l.info("payout data", extra = {  "payout":
+        l.info({  "payout":
                 {
                     "miner": miner,
                     "payout_id": response[0]["main_id"],

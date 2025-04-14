@@ -1,25 +1,28 @@
 import logging
-from opentelemetry._logs import set_logger_provider
 from opentelemetry import trace, metrics
+
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+
 from opentelemetry.instrumentation.asyncio import AsyncioInstrumentor
 from opentelemetry.instrumentation.urllib import URLLibInstrumentor
+
+from opentelemetry._logs import set_logger_provider
+
 from opentelemetry.sdk.metrics import MeterProvider 
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.exporter.prometheus import PrometheusMetricReader
 from opentelemetry.sdk.trace.export import (
     BatchSpanProcessor,
-)
+    )
 from opentelemetry.sdk.metrics.export import (
     PeriodicExportingMetricReader,
 )
 from opentelemetry.sdk.metrics import AlwaysOnExemplarFilter
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
-from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 
 import pyroscope
 

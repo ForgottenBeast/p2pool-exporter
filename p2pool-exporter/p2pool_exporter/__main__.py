@@ -117,7 +117,6 @@ def run():
     if args.otlp:
         configure_otlp(args.otlp)
 
-    start_http_server(args.port, addr="127.0.0.1")
     l.basicConfig(level=args.log_level)
     # Schedule jobs
     asyncio.run(schedule_jobs(args))
