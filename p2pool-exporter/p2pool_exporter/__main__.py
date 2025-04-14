@@ -111,7 +111,8 @@ def run():
     args = parser.parse_args()
     if args.pyroscope:
         configure_pyroscope(
-                application_name="p2pool_exporter", server_address="http://{}".format(args.pyroscope)
+            application_name="p2pool_exporter",
+            server_address="http://{}".format(args.pyroscope),
         )
 
     if args.otlp:

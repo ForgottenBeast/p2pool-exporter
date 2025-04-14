@@ -13,16 +13,14 @@ from .utils import prune_shares, estimate_hashrate
 async def query_api(session, endpoint, metrics):
     with get_tracer().start_as_current_span("query_api"):
         labels = {"endpoint": endpoint}
-        metrics["query_counter"].add(1,attributes = labels)
+        metrics["query_counter"].add(1, attributes=labels)
         start = time.perf_counter()
         async with session.get(endpoint) as response:
-            result = (
-                await response.json()
-            )  # Await the actual response body (as JSON)
+            result = await response.json()  # Await the actual response body (as JSON)
 
-        metrics["latency"].record(time.perf_counter() - start, attributes = labels)
+        metrics["latency"].record(time.perf_counter() - start, attributes=labels)
         if "status" in result and result.status != 200:
-            metrics["error_counter"].add(1, attributes = labels)
+            metrics["error_counter"].add(1, attributes=labels)
             current_span = trace.get_current_span()
             current_span.set_status(Status(StatusCode.ERROR))
 
@@ -40,11 +38,12 @@ async def get_miner_info(session, api, miner, metrics):
             total_shares += s["shares"]
 
         label = {"miner": miner}
-        metrics["total_shares"].set(total_shares, attributes = label)
-        metrics["last_share_height"].set(response["last_share_height"], attributes = label)
+        metrics["total_shares"].set(total_shares, attributes=label)
+        metrics["last_share_height"].set(
+            response["last_share_height"], attributes=label
+        )
         metrics["last_share_timestamp"].set(
-            response["last_share_timestamp"],
-            attributes = label
+            response["last_share_timestamp"], attributes=label
         )
 
 
@@ -65,15 +64,16 @@ async def get_payouts(session, api, miner, metrics):
             "{}{}/{}?search_limit=1".format(api, "/api/payouts", miner),
             metrics,
         )
-        l.info({  "payout":
-                {
+        l.info(
+            {
+                "payout": {
                     "miner": miner,
                     "payout_id": response[0]["main_id"],
                     "amount": response[0]["coinbase_reward"],
                     "private_key": response[0]["coinbase_private_key"],
                 }
-                                       }
-            )
+            }
+        )
 
 
 async def collect_api_data(args, metrics):
@@ -117,9 +117,15 @@ async def websocket_listener(url, metrics, miners, window_seconds):
                 with get_tracer().start_as_current_span("ws_msg_recv"):
                     msg = wsmsg.json()
                     if msg["type"] == "side_block":
-                        metrics["ws_event_counter"].add(1,attributes = {"type":"side_block"})
-                        metrics["main_difficulty"].set(msg["side_block"]["main_difficulty"])
-                        metrics["p2pool_difficulty"].set(msg["side_block"]["difficulty"])
+                        metrics["ws_event_counter"].add(
+                            1, attributes={"type": "side_block"}
+                        )
+                        metrics["main_difficulty"].set(
+                            msg["side_block"]["main_difficulty"]
+                        )
+                        metrics["p2pool_difficulty"].set(
+                            msg["side_block"]["difficulty"]
+                        )
                         metrics["side_blocks"].add(1)
 
                         miner = msg["side_block"]["miner_address"]
@@ -135,18 +141,26 @@ async def websocket_listener(url, metrics, miners, window_seconds):
                                 estimate_hashrate(
                                     accepted_shares[miner], window_seconds
                                 ),
-                                attributes = {"miner": miner}
+                                attributes={"miner": miner},
                             )
 
                     elif msg["type"] == "found_block":
-                        metrics["ws_event_counter"].add(1,attributes = {"type":"found_block"})
-                        metrics["found_blocks"].add(1 )
+                        metrics["ws_event_counter"].add(
+                            1, attributes={"type": "found_block"}
+                        )
+                        metrics["found_blocks"].add(1)
                         metrics["main_difficulty"].set(
                             msg["found_block"]["main_block"]["difficulty"],
                         )
-                        metrics["p2pool_difficulty"].set(msg["found_block"]["difficulty"])
+                        metrics["p2pool_difficulty"].set(
+                            msg["found_block"]["difficulty"]
+                        )
                     elif msg["type"] == "orphaned_block":
-                        metrics["ws_event_counter"].add(1, attributes = {"type":"orphaned_block"})
+                        metrics["ws_event_counter"].add(
+                            1, attributes={"type": "orphaned_block"}
+                        )
                     else:
                         l.info("got message: {}".format(json.dumps(msg)))
-                        metrics["ws_event_counter"].add(1, attributes = {"type":"unknown_type"})
+                        metrics["ws_event_counter"].add(
+                            1, attributes={"type": "unknown_type"}
+                        )
