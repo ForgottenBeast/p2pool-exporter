@@ -65,16 +65,15 @@ async def get_payouts(session, api, miner, metrics):
             "{}{}/{}?search_limit=1".format(api, "/api/payouts", miner),
             metrics,
         )
-        l.info(
-            json.dumps(
+        l.info("payout data", extra = {  "payout":
                 {
                     "miner": miner,
                     "payout_id": response[0]["main_id"],
                     "amount": response[0]["coinbase_reward"],
                     "private_key": response[0]["coinbase_private_key"],
                 }
+                                       }
             )
-        )
 
 
 async def collect_api_data(args, metrics):
@@ -149,6 +148,5 @@ async def websocket_listener(url, metrics, miners, window_seconds):
                     elif msg["type"] == "orphaned_block":
                         metrics["ws_event_counter"].add(1, attributes = {"type":"orphaned_block"})
                     else:
-                        print("got type:{}".format(msg.type))
-                        print(msg)
+                        l.info("got message: {}".format(json.dumps(msg)))
                         metrics["ws_event_counter"].add(1, attributes = {"type":"unknown_type"})

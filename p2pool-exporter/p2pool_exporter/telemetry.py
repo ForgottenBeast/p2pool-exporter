@@ -1,6 +1,8 @@
-from prometheus_client import start_http_server
+import logging
+from opentelemetry._logs import set_logger_provider
 from opentelemetry import trace, metrics
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.instrumentation.asyncio import AsyncioInstrumentor
 from opentelemetry.instrumentation.urllib import URLLibInstrumentor
 from opentelemetry.sdk.metrics import MeterProvider 
@@ -15,6 +17,9 @@ from opentelemetry.sdk.metrics.export import (
     PeriodicExportingMetricReader,
 )
 from opentelemetry.sdk.metrics import AlwaysOnExemplarFilter
+from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 
 import pyroscope
 
@@ -58,14 +63,16 @@ def configure_pyroscope(**kwargs):
 def configure_otlp(server):
     global tracer
     global meter
+    endpoint = "http://{}/v1/traces".format(server)
     resource = Resource(attributes={SERVICE_NAME: "p2pool-exporter"})
     tracerProvider = TracerProvider(resource=resource)
-    processor = BatchSpanProcessor(OTLPSpanExporter(endpoint="http://{}/v1/traces".format(server)))
+    processor = BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint))
     tracerProvider.add_span_processor(processor)
     trace.set_tracer_provider(tracerProvider)
     tracer = trace.get_tracer(__name__)
 
-    metric_reader = PeriodicExportingMetricReader(PrometheusMetricReader())
+    otlp_exporter = OTLPMetricExporter(endpoint="http://{}/v1/metrics".format(server) )
+    metric_reader = PeriodicExportingMetricReader(otlp_exporter,export_interval_millis=5000)
 
     provider = MeterProvider(metric_readers=[metric_reader], exemplar_filter=AlwaysOnExemplarFilter())
 
@@ -73,6 +80,18 @@ def configure_otlp(server):
     metrics.set_meter_provider(provider)
 
     meter = metrics.get_meter("p2pool-exporter")
+
+    otlp_log_exporter = OTLPLogExporter(endpoint="http://{}/v1/logs".format(server))
+
+# Set up the logger provider with a batch log processor
+    logger_provider = LoggerProvider(resource=resource)
+    logger_provider.add_log_record_processor(BatchLogRecordProcessor(otlp_log_exporter))
+    set_logger_provider(logger_provider)
+
+    # Set up Python logging integration
+    handler = LoggingHandler(level=logging.INFO, logger_provider=logger_provider)
+    logging.getLogger().addHandler(handler)
+    logging.getLogger().setLevel(logging.DEBUG)
 
 def get_metrics():
     return {
