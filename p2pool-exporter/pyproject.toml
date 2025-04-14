@@ -14,8 +14,8 @@ dependencies = [
     "opentelemetry-instrumentation-asyncio>=0.53b0",
     "opentelemetry-instrumentation-urllib>=0.53b0",
     "opentelemetry-sdk>=1.32.0",
-    "prometheus-client>=0.21.1",
-    "pyroscope-io>=0.8.9",
+    "pyroscope-io>=0.8.8",
+    "pyroscope-otel>=0.4.0",
 ]
 
 [project.scripts]

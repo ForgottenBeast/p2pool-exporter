@@ -550,8 +550,8 @@ dependencies = [
     { name = "opentelemetry-instrumentation-asyncio" },
     { name = "opentelemetry-instrumentation-urllib" },
     { name = "opentelemetry-sdk" },
-    { name = "prometheus-client" },
     { name = "pyroscope-io" },
+    { name = "pyroscope-otel" },
 ]
 
 [package.metadata]
@@ -565,8 +565,8 @@ requires-dist = [
     { name = "opentelemetry-instrumentation-asyncio", specifier = ">=0.53b0" },
     { name = "opentelemetry-instrumentation-urllib", specifier = ">=0.53b0" },
     { name = "opentelemetry-sdk", specifier = ">=1.32.0" },
-    { name = "prometheus-client", specifier = ">=0.21.1" },
-    { name = "pyroscope-io", specifier = ">=0.8.9" },
+    { name = "pyroscope-io", specifier = ">=0.8.8" },
+    { name = "pyroscope-otel", specifier = ">=0.4.0" },
 ]
 
 [[package]]
@@ -669,16 +669,30 @@ wheels = [
 
 [[package]]
 name = "pyroscope-io"
-version = "0.8.9"
+version = "0.8.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cffi" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e9/bf/0d48d5d8a4f63c7b21f68bb29b403803567046f25e9cca6f05c5088b9fcc/pyroscope_io-0.8.9-py2.py3-none-macosx_11_0_arm64.whl", hash = "sha256:3252793c56ba4140876cb86b9c93627490a2072ede19216558c09357e1d6f151", size = 2411168 },
-    { url = "https://files.pythonhosted.org/packages/da/00/d83145ac62869634d41d05788537f7f851a3b3983a975e5c4b0a2d4a5718/pyroscope_io-0.8.9-py2.py3-none-macosx_11_0_x86_64.whl", hash = "sha256:36434d4804d93a6b74005b756d98e98575b1e550f5c26fb96e3a4ffd02606255", size = 2568840 },
-    { url = "https://files.pythonhosted.org/packages/af/2e/cf2bc36b45c4b878f32efc35f1201118fe45e46f8bbcac1e8514d933da21/pyroscope_io-0.8.9-py2.py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:9f7c95a37d1dfbe5491d8ac1e46db9bbef3c6d022eefc74c307b0d64c0f6b403", size = 2591537 },
-    { url = "https://files.pythonhosted.org/packages/50/df/4ac4dbabdfa94ece1426a274481da5ea471d2b3ff821233c28f8216a393a/pyroscope_io-0.8.9-py2.py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:2de62c770ac9c122bcdfc63b021f4a8af84a992a2cd6ccbe5fc5f2503923a2a4", size = 2707025 },
+    { url = "https://files.pythonhosted.org/packages/d5/cc/0d04cc9ec00e7939aa4c7513baf064b9aadd71c761ee4d2b3824e2718922/pyroscope_io-0.8.8-py2.py3-none-macosx_11_0_arm64.whl", hash = "sha256:d33df6c2742eef9868897d199e4e1efec3f5d18377cc73d273b74f7f5e60ac4b", size = 2320598 },
+    { url = "https://files.pythonhosted.org/packages/3b/b6/22558093784c774abf3851b45153019a72c0eead37d29844ea49cbb7bf85/pyroscope_io-0.8.8-py2.py3-none-macosx_11_0_x86_64.whl", hash = "sha256:18058e9c15d8229db4208b48ed16544d18a31220e87d60c954d9d637de69696b", size = 2470586 },
+    { url = "https://files.pythonhosted.org/packages/61/d3/28e5a1c74471dc00a59aae7ca2ecdd499d5fd2d282d6743ee109375a0711/pyroscope_io-0.8.8-py2.py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:2312b55538deb240c1428591678ad9316a3f19af11bbcf15704d7d83c7adb7c7", size = 2520668 },
+    { url = "https://files.pythonhosted.org/packages/68/3f/55a14b1e8de36145c79a6bc92588f7cde1f93ccb08ba727b48ec5675a13c/pyroscope_io-0.8.8-py2.py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:422286f356d5be69bb0754671cb43c233a3fca68ac7c65c05451986f11bac0e3", size = 2628011 },
+]
+
+[[package]]
+name = "pyroscope-otel"
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-sdk" },
+    { name = "pyroscope-io" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ae/e1/f664ef0efdd8fa164be3ee94405d342b022bcded0d4f203e247108b5e368/pyroscope_otel-0.4.0.tar.gz", hash = "sha256:c74f9bcfdbcd3093c25032215e17924755fcb91ae7c5d061099d8bd51cee7505", size = 10612 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f5/39/f3175d6d93a0928729890b7c6d22167b7adfe648ab26a8d659227e62d90c/pyroscope_otel-0.4.0-py3-none-any.whl", hash = "sha256:3dec6c9f1fa7935bdf246ac41de7afdad96f5571d8d1fccd5ddca5897abd38fa", size = 10431 },
 ]
 
 [[package]]
