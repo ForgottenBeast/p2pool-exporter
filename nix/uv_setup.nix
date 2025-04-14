@@ -33,13 +33,6 @@ rec {
   # - https://pyproject-nix.github.io/uv2nix/FAQ.html
   pyprojectOverrides = final: prev: {
     # Implement build fixups here.
-    observlib = prev.observlib.overrideAttrs (old: {
-      nativeBuildInputs =
-        old.nativeBuildInputs
-        ++ [ prev.pkgs.python312Packages.setuptools ]
-        ++ (final.resolveBuildSystem { setuptools = [ ]; });
-    });
-
   };
 
   # Use Python 3.12 from nixpkgs
