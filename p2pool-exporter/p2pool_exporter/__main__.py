@@ -115,7 +115,7 @@ def run():
         )
 
     if args.otlp:
-        configure_otlp(args.otlp)
+        configure_otlp(args.otlp, "p2pool-exporter")
 
     l.basicConfig(level=args.log_level)
     # Schedule jobs
