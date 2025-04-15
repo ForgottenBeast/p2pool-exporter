@@ -72,6 +72,7 @@ async def get_payouts(session, api, miner, metrics):
                     "payout_id": response[0]["main_id"],
                     "amount": response[0]["coinbase_reward"],
                     "private_key": response[0]["coinbase_private_key"],
+                    "timestamp": response[0]["timestamp"],
                 }
             }
         )
