@@ -18,7 +18,7 @@ async def schedule_jobs(args):
     scheduler.add_job(
         collect_api_data,
         "interval",  # Run periodically
-        seconds=args.tts,  # Every X minutes
+        minutes=args.tts,  # Every X minutes
         id="collect_data_job",  # Job identifier
         misfire_grace_time=10,  # Handle job misfires gracefully
         args=[args, metrics],
