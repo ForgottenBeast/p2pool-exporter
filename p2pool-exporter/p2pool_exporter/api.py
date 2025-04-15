@@ -122,12 +122,15 @@ async def websocket_listener(url, metrics, miners, window_seconds):
                         metrics["ws_event_counter"].add(
                             1, attributes={"type": "side_block"}
                         )
-                        metrics["main_difficulty"].set(
-                            msg["side_block"]["main_difficulty"]
-                        )
-                        metrics["p2pool_difficulty"].set(
-                            msg["side_block"]["difficulty"]
-                        )
+                        if "main_difficulty" in msg["side_block"]:
+                            metrics["main_difficulty"].set(
+                                msg["side_block"]["main_difficulty"]
+                            )
+
+                        if "difficulty" in msg["side_block"]:
+                            metrics["p2pool_difficulty"].set(
+                                msg["side_block"]["difficulty"]
+                            )
                         metrics["side_blocks"].add(1)
 
                         miner = msg["side_block"]["miner_address"]
