@@ -4,7 +4,7 @@ import time
 def prune_shares(accepted_shares, window_seconds):
     accepted_shares = list(
         filter(
-            lambda share: share.timestamp < time.time() - window_seconds,
+            lambda share: share["timestamp"] < time.time() - window_seconds,
             accepted_shares,
         )
     )
