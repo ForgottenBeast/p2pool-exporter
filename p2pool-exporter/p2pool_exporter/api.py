@@ -36,6 +36,7 @@ async def get_miner_info(session, api, miner, metrics):
         total_shares = 0
         for s in response["shares"]:
             total_shares += s["shares"]
+            total_shares += s["uncles"]
 
         label = {"miner": miner}
         metrics["total_shares"].set(total_shares, attributes=label)
