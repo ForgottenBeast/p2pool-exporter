@@ -118,43 +118,48 @@ async def collect_api_data(args, metrics):
 async def websocket_listener(url, metrics):
     endpoint = "{}/api/events".format(url)
     async with aiohttp.ClientSession() as session:
-        async with session.ws_connect(endpoint) as ws:
-            async for wsmsg in ws:
-                with get_tracer().start_as_current_span("ws_msg_recv"):
-                    msg = wsmsg.json()
-                    if msg["type"] == "side_block":
-                        metrics["ws_event_counter"].add(
-                            1, attributes={"type": "side_block"}
-                        )
-                        if "main_difficulty" in msg["side_block"]:
-                            metrics["main_difficulty"].set(
-                                msg["side_block"]["main_difficulty"]
-                            )
+        while True:
+            try:
+                async with session.ws_connect(endpoint) as ws:
+                    async for wsmsg in ws:
+                        with get_tracer().start_as_current_span("ws_msg_recv"):
+                            msg = wsmsg.json()
+                            if msg["type"] == "side_block":
+                                metrics["ws_event_counter"].add(
+                                    1, attributes={"type": "side_block"}
+                                )
+                                if "main_difficulty" in msg["side_block"]:
+                                    metrics["main_difficulty"].set(
+                                        msg["side_block"]["main_difficulty"]
+                                    )
 
-                        if "difficulty" in msg["side_block"]:
-                            metrics["p2pool_difficulty"].set(
-                                msg["side_block"]["difficulty"]
-                            )
-                        metrics["side_blocks"].add(1)
+                                if "difficulty" in msg["side_block"]:
+                                    metrics["p2pool_difficulty"].set(
+                                        msg["side_block"]["difficulty"]
+                                    )
+                                metrics["side_blocks"].add(1)
 
 
-                    elif msg["type"] == "found_block":
-                        metrics["ws_event_counter"].add(
-                            1, attributes={"type": "found_block"}
-                        )
-                        metrics["found_blocks"].add(1)
-                        metrics["main_difficulty"].set(
-                            msg["found_block"]["main_block"]["difficulty"],
-                        )
-                        metrics["p2pool_difficulty"].set(
-                            msg["found_block"]["difficulty"]
-                        )
-                    elif msg["type"] == "orphaned_block":
-                        metrics["ws_event_counter"].add(
-                            1, attributes={"type": "orphaned_block"}
-                        )
-                    else:
-                        l.info("got message: {}".format(json.dumps(msg)))
-                        metrics["ws_event_counter"].add(
-                            1, attributes={"type": "unknown_type"}
-                        )
+                            elif msg["type"] == "found_block":
+                                metrics["ws_event_counter"].add(
+                                    1, attributes={"type": "found_block"}
+                                )
+                                metrics["found_blocks"].add(1)
+                                metrics["main_difficulty"].set(
+                                    msg["found_block"]["main_block"]["difficulty"],
+                                )
+                                metrics["p2pool_difficulty"].set(
+                                    msg["found_block"]["difficulty"]
+                                )
+                            elif msg["type"] == "orphaned_block":
+                                metrics["ws_event_counter"].add(
+                                    1, attributes={"type": "orphaned_block"}
+                                )
+                            else:
+                                l.warn({"message": "got unknown api events message: {}".format(json.dumps(msg))})
+                                metrics["ws_event_counter"].add(
+                                    1, attributes={"type": "unknown_type"}
+                                )
+            except Exception as ex:
+                metrics["error_counter"].add(1, attributes={"endpoint": endpoint})
+                l.warn({"message":"error connecting to the websocket API: {}".format(ex)})
