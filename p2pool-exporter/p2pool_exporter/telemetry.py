@@ -96,7 +96,6 @@ def configure_otlp(server, service_name):
     # Set up Python logging integration
     handler = LoggingHandler(level=logging.DEBUG, logger_provider=logger_provider)
     logging.getLogger().addHandler(handler)
-    logging.getLogger().setLevel(logging.DEBUG)
 
 
 def get_metrics():

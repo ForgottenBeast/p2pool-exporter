@@ -109,7 +109,8 @@ def run():
     if args.otlp:
         configure_otlp(args.otlp, "p2pool-exporter")
 
-    l.basicConfig(level=args.log_level)
+    l.getLogger().setLevel(args.log_level)
+
     # Schedule jobs
     asyncio.run(schedule_jobs(args))
 
