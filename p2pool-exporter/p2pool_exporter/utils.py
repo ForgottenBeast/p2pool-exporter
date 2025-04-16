@@ -8,5 +8,8 @@ def estimate_hashrate(accepted_shares):
         if s["timestamp"] < oldest_share:
             oldest_share = s["timestamp"]
 
+    if now == oldest_share:
+        return 0
+
     total_difficulty = sum(s["difficulty"] for s in accepted_shares)
     return total_difficulty / (now - oldest_share)  # Hashrate in H/s
