@@ -1,20 +1,12 @@
 import time
 
-
-def prune_shares(accepted_shares, window_seconds):
-    accepted_shares = list(
-        filter(
-            lambda share: share["timestamp"] < time.time() - window_seconds,
-            accepted_shares,
-        )
-    )
-
-
-def estimate_hashrate(accepted_shares, window_seconds=600):
+def estimate_hashrate(accepted_shares):
     now = time.time()
-    recent_shares = [
-        s for s in accepted_shares if now - s["timestamp"] <= window_seconds
-    ]
+    oldest_share = now
+    total_difficulty = 0
+    for s in accepted_shares:
+        if s["timestamp"] < oldest_share:
+            oldest_share = s["timestamp"]
 
-    total_difficulty = sum(s["difficulty"] for s in recent_shares)
-    return total_difficulty / window_seconds  # Hashrate in H/s
+    total_difficulty = sum(s["difficulty"] for s in accepted_shares)
+    return total_difficulty / (now - oldest_share)  # Hashrate in H/s

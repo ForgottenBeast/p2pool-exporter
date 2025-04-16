@@ -7,7 +7,7 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace import Status, StatusCode
 
 from .telemetry import get_tracer
-from .utils import prune_shares, estimate_hashrate
+from .utils import estimate_hashrate
 
 
 async def query_api(session, endpoint, metrics):
@@ -56,6 +56,14 @@ async def get_sideblocks(session, api, miner, metrics):
 
         label = {"miner": miner}
         metrics["sideblocks_in_window"].set(len(response), attributes=label)
+
+        metrics["p2pool_hashrate"].set(
+            estimate_hashrate(
+                [ {"timestamp": s["timestamp"], "difficulty": s["difficulty"]} for s in response ]
+            ),
+            attributes={"miner": miner},
+        )
+
 
 
 async def get_payouts(session, api, miner, metrics):
@@ -107,12 +115,8 @@ async def collect_api_data(args, metrics):
             l.debug(f"Collected data: {results}")
 
 
-async def websocket_listener(url, metrics, miners, window_seconds):
+async def websocket_listener(url, metrics):
     endpoint = "{}/api/events".format(url)
-    accepted_shares = {}
-    for m in miners:
-        accepted_shares[m] = []
-
     async with aiohttp.ClientSession() as session:
         async with session.ws_connect(endpoint) as ws:
             async for wsmsg in ws:
@@ -133,21 +137,6 @@ async def websocket_listener(url, metrics, miners, window_seconds):
                             )
                         metrics["side_blocks"].add(1)
 
-                        miner = msg["side_block"]["miner_address"]
-                        if miner in miners:
-                            accepted_shares[miner].append(
-                                {
-                                    "timestamp": msg["side_block"]["timestamp"],
-                                    "difficulty": msg["side_block"]["difficulty"],
-                                }
-                            )
-                            prune_shares(accepted_shares[miner], window_seconds)
-                            metrics["p2pool_hashrate"].set(
-                                estimate_hashrate(
-                                    accepted_shares[miner], window_seconds
-                                ),
-                                attributes={"miner": miner},
-                            )
 
                     elif msg["type"] == "found_block":
                         metrics["ws_event_counter"].add(

@@ -35,7 +35,7 @@ async def schedule_jobs(args):
 
     # Start the scheduler and run the asyncio loop together
     scheduler.start()
-    await websocket_listener(args.endpoint, metrics, args.wallets, args.window)
+    await websocket_listener(args.endpoint, metrics)
 
 
 def run():
@@ -96,15 +96,6 @@ def run():
         dest="port",
         action="store",
         default=9093,
-        type=int,
-    )
-    parser.add_argument(
-        "-W",
-        "--window-seconds",
-        help="window to use for hashrate estimation",
-        dest="window",
-        action="store",
-        default=600,
         type=int,
     )
 
