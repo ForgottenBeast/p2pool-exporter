@@ -35,9 +35,8 @@ async def get_miner_info(session, api, miner, metrics):
 
         total_shares = 0
         for s in response["shares"]:
-            if isinstance(s, dict):
-                total_shares += s["shares"]
-                total_shares += s["uncles"]
+            total_shares += s["shares"]
+            total_shares += s["uncles"]
 
         label = {"miner": miner}
         metrics["total_shares"].set(total_shares, attributes=label)
@@ -56,7 +55,13 @@ async def get_sideblocks(session, api, miner, metrics):
         )
 
         label = {"miner": miner}
-        metrics["sideblocks_in_window"].set(len(response), attributes=label)
+
+        total_blocks = 0
+        for b in response:
+            if isinstance(b,dict):
+                total_blocks += 1
+
+        metrics["sideblocks_in_window"].set(total_blocks, attributes=label)
 
         metrics["p2pool_hashrate"].set(
             estimate_hashrate(
