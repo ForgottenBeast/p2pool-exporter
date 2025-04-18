@@ -1,5 +1,6 @@
 import time
 
+
 def estimate_hashrate(accepted_shares):
     now = time.time()
     oldest_share = now

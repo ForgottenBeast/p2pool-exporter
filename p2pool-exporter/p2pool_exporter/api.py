@@ -58,18 +58,20 @@ async def get_sideblocks(session, api, miner, metrics):
 
         total_blocks = 0
         for b in response:
-            if isinstance(b,dict):
+            if isinstance(b, dict):
                 total_blocks += 1
 
         metrics["sideblocks_in_window"].set(total_blocks, attributes=label)
 
         metrics["p2pool_hashrate"].set(
             estimate_hashrate(
-                [ {"timestamp": s["timestamp"], "difficulty": s["difficulty"]} for s in response ]
+                [
+                    {"timestamp": s["timestamp"], "difficulty": s["difficulty"]}
+                    for s in response
+                ]
             ),
             attributes={"miner": miner},
         )
-
 
 
 async def get_payouts(session, api, miner, metrics):
@@ -145,7 +147,6 @@ async def websocket_listener(url, metrics):
                                     )
                                 metrics["side_blocks"].add(1)
 
-
                             elif msg["type"] == "found_block":
                                 metrics["ws_event_counter"].add(
                                     1, attributes={"type": "found_block"}
@@ -162,10 +163,18 @@ async def websocket_listener(url, metrics):
                                     1, attributes={"type": "orphaned_block"}
                                 )
                             else:
-                                l.warn({"message": "got unknown api events message: {}".format(json.dumps(msg))})
+                                l.warn(
+                                    {
+                                        "message": "got unknown api events message: {}".format(
+                                            json.dumps(msg)
+                                        )
+                                    }
+                                )
                                 metrics["ws_event_counter"].add(
                                     1, attributes={"type": "unknown_type"}
                                 )
             except Exception as ex:
                 metrics["error_counter"].add(1, attributes={"endpoint": endpoint})
-                l.warn({"message":"error connecting to the websocket API: {}".format(ex)})
+                l.warn(
+                    {"message": "error connecting to the websocket API: {}".format(ex)}
+                )
