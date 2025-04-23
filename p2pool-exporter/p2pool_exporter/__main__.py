@@ -104,6 +104,7 @@ def run():
         configure_pyroscope(
             application_name="p2pool_exporter",
             server_address="http://{}".format(args.pyroscope),
+            sample_rate = 5,
         )
 
     if args.otlp:
