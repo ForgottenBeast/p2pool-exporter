@@ -2,98 +2,103 @@ import time
 import aiohttp
 import asyncio
 import json
-import logging as l
-from opentelemetry import trace
-from opentelemetry.sdk.trace import Status, StatusCode
-
-from .telemetry import get_tracer
+from logging import getLogger
+from .telemetry import get_traced_conf, get_counter, get_gauge
 from .utils import estimate_hashrate
+from observlib import traced
 
+logger = getLogger(__name__)
+service_name = "p2pool-exporter"
 
+traced_conf = get_traced_conf()
+
+@traced(**traced_conf)
 async def query_api(session, endpoint, metrics):
     with get_tracer().start_as_current_span("query_api"):
-        labels = {"endpoint": endpoint}
-        metrics["query_counter"].add(1, attributes=labels)
-        start = time.perf_counter()
         async with session.get(endpoint) as response:
             result = await response.json()  # Await the actual response body (as JSON)
 
-        metrics["latency"].record(time.perf_counter() - start, attributes=labels)
         if "status" in result and result.status != 200:
-            metrics["error_counter"].add(1, attributes=labels)
-            current_span = trace.get_current_span()
-            current_span.set_status(Status(StatusCode.ERROR))
+            raise Exception("error querying")
 
         return result
 
-
+@traced(tracer = service_name)
 async def get_miner_info(session, api, miner, metrics):
-    with get_tracer().start_as_current_span("get_miner_info"):
-        response = await query_api(
-            session, "{}{}/{}".format(api, "/api/miner_info", miner), metrics
-        )
+    shares_c = get_counter(frozenset({"name":"p2pool_exporter_total_shares"}.items()))
+    last_shares_height_g = get_gauge(frozenset({"name":"p2pool_exporter_last_share_height"}.items()))
+    last_shares_timestamp_g = get_gauge(frozenset({"name":"p2pool_exporter_last_share_timestamp"}.items()))
 
-        total_shares = 0
-        for s in response["shares"]:
-            total_shares += s["shares"]
-            total_shares += s["uncles"]
+    response = await query_api(
+        session, "{}{}/{}".format(api, "/api/miner_info", miner), metrics
+    )
 
-        label = {"miner": miner}
-        metrics["total_shares"].set(total_shares, attributes=label)
-        metrics["last_share_height"].set(
-            response["last_share_height"], attributes=label
-        )
-        metrics["last_share_timestamp"].set(
-            response["last_share_timestamp"], attributes=label
-        )
+    total_shares = 0
+    for s in response["shares"]:
+        total_shares += s["shares"]
+        total_shares += s["uncles"]
+
+    label = {"miner": miner}
+
+    shares_c.set(total_shares, attributes=label)
+    last_share_height_g.set(
+        response["last_share_height"], attributes=label
+    )
+    last_share_timestamp_g.set(
+        response["last_share_timestamp"], attributes=label
+    )
 
 
+@traced(tracer = service_name)
 async def get_sideblocks(session, api, miner, metrics):
-    with get_tracer().start_as_current_span("get_sideblocks"):
-        response = await query_api(
-            session, "{}{}/{}".format(api, "/api/side_blocks_in_window", miner), metrics
-        )
+    sideblocks_c = get_counter(frozenset({"name":"p2pool_exporter_sideblocks_in_window"}.items()),up_down = True)
+    hashrate_c = get_counter(frozenset({"name":"p2pool_exporter_hashrate"}.items()),up_down = True)
+    response = await query_api(
+        session, "{}{}/{}".format(api, "/api/side_blocks_in_window", miner), metrics
+    )
 
-        label = {"miner": miner}
+    label = {"miner": miner}
 
-        total_blocks = 0
-        for b in response:
-            if isinstance(b, dict):
-                total_blocks += 1
+    total_blocks = 0
+    for b in response:
+        if isinstance(b, dict):
+            total_blocks += 1
 
-        metrics["sideblocks_in_window"].set(total_blocks, attributes=label)
+    sideblocks_c.set(total_blocks, attributes=label)
 
-        metrics["p2pool_hashrate"].set(
-            estimate_hashrate(
-                [
-                    {"timestamp": s["timestamp"], "difficulty": s["difficulty"]}
-                    for s in response
-                ]
-            ),
-            attributes={"miner": miner},
-        )
+    hashrate_c.set(
+        estimate_hashrate(
+            [
+                {"timestamp": s["timestamp"], "difficulty": s["difficulty"]}
+                for s in response
+            ]
+        ),
+        attributes={"miner": miner},
+    )
 
 
+@traced(tracer = service_name)
 async def get_payouts(session, api, miner, metrics):
-    with get_tracer().start_as_current_span("get_payouts"):
-        response = await query_api(
-            session,
-            "{}{}/{}?search_limit=1".format(api, "/api/payouts", miner),
-            metrics,
-        )
-        l.info(
-            {
-                "payout": {
-                    "miner": miner,
-                    "payout_id": response[0]["main_id"],
-                    "amount": response[0]["coinbase_reward"],
-                    "private_key": response[0]["coinbase_private_key"],
-                    "timestamp": response[0]["timestamp"],
-                }
+    payouts_c = get_counter(frozenset({"name":"p2pool_exporter_payouts"}.items()), up_down = True) #goes down when payouts are old enough
+    response = await query_api(
+        session,
+        "{}{}/{}?search_limit=1".format(api, "/api/payouts", miner),
+        metrics,
+    )
+    l.info(
+        {
+            "payout": {
+                "miner": miner,
+                "payout_id": response[0]["main_id"],
+                "amount": response[0]["coinbase_reward"],
+                "private_key": response[0]["coinbase_private_key"],
+                "timestamp": response[0]["timestamp"],
             }
-        )
+        }
+    )
 
 
+@traced(tracer = service_name)
 async def collect_api_data(args, metrics):
     with get_tracer().start_as_current_span("collect_api_data"):
         # Start Prometheus server
@@ -123,6 +128,7 @@ async def collect_api_data(args, metrics):
             l.debug(f"Collected data: {results}")
 
 
+@traced(tracer = service_name)
 async def websocket_listener(url, metrics):
     endpoint = "{}/api/events".format(url)
     async with aiohttp.ClientSession() as session:
