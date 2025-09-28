@@ -1,8 +1,7 @@
-from .telemetry import get_metrics, configure_pyroscope, configure_otlp
+from observlib import configure_telemetry
 from .api import collect_api_data, websocket_listener
 import argparse
 import asyncio
-import logging as l
 from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -66,22 +65,6 @@ def run():
         action="store",
     )
     parser.add_argument(
-        "-p",
-        "--pyroscope-server",
-        help="Pyroscope server address for profiling",
-        dest="pyroscope",
-        default=None,
-        action="store",
-    )
-    parser.add_argument(
-        "-o",
-        "--otlp-server",
-        help="OTLP server for spans",
-        dest="otlp",
-        default=None,
-        action="store",
-    )
-    parser.add_argument(
         "-t",
         "--time-to-scrape",
         help="How many minutes between scrapes",
@@ -89,6 +72,14 @@ def run():
         default=5,
         action="store",
     )
+    parser.add_argument(
+        "-d",
+        "--devmode",
+        action="store_true",
+        help="enable debug mode, increase telemetry",
+        dest="debug",
+    )
+
     parser.add_argument(
         "-P",
         "--port",
@@ -100,17 +91,25 @@ def run():
     )
 
     args = parser.parse_args()
-    if args.pyroscope:
-        configure_pyroscope(
-            application_name="p2pool_exporter",
-            server_address="http://{}".format(args.pyroscope),
-            sample_rate = 5,
-        )
+    attrs = {}
+    sample_rate = 5
+    if args.debug:
+        attrs = {"environment": "dev"}
+        sample_rate = 100
 
-    if args.otlp:
-        configure_otlp(args.otlp, "p2pool-exporter")
+    pyroscope_server = None
+    if args.debug:
+        pyroscope_server = os.environ.get("PYROSCOPE_DEV_SERVER")
+    else:
+        pyroscope_server = os.environ.get("PYROSCOPE_SERVER")
 
-    l.getLogger().setLevel(args.log_level)
+    configure_telemetry(
+        "p2pool-exporter",
+        os.environ["OTEL_SERVER"],
+        pyroscope_server,
+        sample_rate,
+        resource_attrs=attrs,
+    )
 
     # Schedule jobs
     asyncio.run(schedule_jobs(args))
