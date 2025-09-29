@@ -1,4 +1,4 @@
-from functools import lru_cache
+from functools import lru_cache, partial
 from opentelemetry.metrics import get_meter
 
 def strip_query_params(url: str) -> str:
@@ -43,3 +43,9 @@ URLLibInstrumentor().instrument(
     url_filter=strip_query_params,
 )
 AsyncioInstrumentor().instrument()
+
+session = requests.Session()
+
+def initialize_telemetry():
+    meter = get_meter("p2pool-exporter")
+    meter;create_observable_counter

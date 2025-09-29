@@ -13,10 +13,10 @@ service_name = "p2pool-exporter"
 traced_conf = get_traced_conf()
 
 @traced(**traced_conf)
-async def query_api(session, endpoint, metrics):
-    with get_tracer().start_as_current_span("query_api"):
-        async with session.get(endpoint) as response:
-            result = await response.json()  # Await the actual response body (as JSON)
+async def query_api(session,endpoint, metrics):
+        global session
+        with session.get(endpoint) as response:
+            result = response.json()  # Await the actual response body (as JSON)
 
         if "status" in result and result.status != 200:
             raise Exception("error querying")
