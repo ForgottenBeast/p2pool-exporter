@@ -40,6 +40,7 @@ async def get_miner_info(session, api, miner, metrics):
         total_shares += s["uncles"]
 
     new_data = {"last_share_height":response["last_share_height"]}
+    logger.info("retrieved miner data", extra = new_data | {"miner":miner})
     cur_data = await redis_client.get(f"miner:{miner}")
     if cur_data:
         new_data = json.loads(cur_data) | new_data
@@ -77,7 +78,7 @@ async def get_payouts(session, api, miner, metrics):
         "{}{}/{}?search_limit=0".format(api, "/api/payouts", miner),
         metrics,
     )
-    l.info(
+    logger.info(
         {
             "payout": {
                 "miner": miner,
