@@ -1,7 +1,8 @@
 from observlib import configure_telemetry
-from .api import collect_api_data, websocket_listener
+from .api import collect_api_data, websocket_listener, configure_redis
 import argparse
 import asyncio
+from .telemetry import initialize_telemetry
 from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -100,9 +101,12 @@ def run():
     pyroscope_server = None
     if args.debug:
         pyroscope_server = os.environ.get("PYROSCOPE_DEV_SERVER")
+        redis = os.environ.get("REDIS_DEV_SERVER").split(":")
     else:
         pyroscope_server = os.environ.get("PYROSCOPE_SERVER")
+        redis = os.environ.get("REDIS_SERVER").split(":")
 
+    configure_redis(*redis)
     configure_telemetry(
         "p2pool-exporter",
         os.environ["OTEL_SERVER"],
@@ -112,6 +116,7 @@ def run():
     )
 
     # Schedule jobs
+    initialize_telemetry()
     asyncio.run(schedule_jobs(args))
 
 
