@@ -21,7 +21,7 @@ def configure_redis(host, port):
 
 
 @traced(**traced_conf)
-async def query_api(session, endpoint, metrics):
+async def query_api(session, endpoint):
     with session.get(endpoint) as response:
         result = response.json()  # Await the actual response body (as JSON)
 
@@ -32,10 +32,8 @@ async def query_api(session, endpoint, metrics):
 
 
 @traced(tracer=service_name)
-async def get_miner_info(session, api, miner, metrics):
-    response = await query_api(
-        session, "{}{}/{}".format(api, "/api/miner_info", miner), metrics
-    )
+async def get_miner_info(session, api, miner):
+    response = await query_api(session, "{}{}/{}".format(api, "/api/miner_info", miner))
 
     total_shares = 0
     for s in response["shares"]:
@@ -51,9 +49,9 @@ async def get_miner_info(session, api, miner, metrics):
 
 
 @traced(tracer=service_name)
-async def get_sideblocks(session, api, miner, metrics):
+async def get_sideblocks(session, api, miner):
     response = await query_api(
-        session, "{}{}/{}".format(api, "/api/side_blocks_in_window", miner), metrics
+        session, "{}{}/{}".format(api, "/api/side_blocks_in_window", miner)
     )
 
     total_blocks = 0
@@ -78,11 +76,10 @@ async def get_sideblocks(session, api, miner, metrics):
 
 
 @traced(tracer=service_name)
-async def get_payouts(session, api, miner, metrics):
+async def get_payouts(session, api, miner):
     response = await query_api(
         session,
         "{}{}/{}?search_limit=0".format(api, "/api/payouts", miner),
-        metrics,
     )
     logger.info(
         {
@@ -106,23 +103,14 @@ async def get_payouts(session, api, miner, metrics):
 
 
 @traced(tracer=service_name)
-async def collect_api_data(args, metrics):
+async def collect_api_data(args):
     # Create the session once and pass it to each function call
     async with aiohttp.ClientSession() as session:
         # Query each miner wallet asynchronously
         tasks = (
-            [
-                get_miner_info(session, args.endpoint, miner, metrics)
-                for miner in args.wallets
-            ]
-            + [
-                get_sideblocks(session, args.endpoint, miner, metrics)
-                for miner in args.wallets
-            ]
-            + [
-                get_payouts(session, args.endpoint, miner, metrics)
-                for miner in args.wallets
-            ]
+            [get_miner_info(session, args.endpoint, miner) for miner in args.wallets]
+            + [get_sideblocks(session, args.endpoint, miner) for miner in args.wallets]
+            + [get_payouts(session, args.endpoint, miner) for miner in args.wallets]
         )
 
         # Await all tasks (don't forget this!)

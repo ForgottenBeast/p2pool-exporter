@@ -20,7 +20,7 @@ async def schedule_jobs(args):
     scheduler.add_job(
         collect_api_data,
         "interval",  # Run periodically
-        minutes=args.tts,  # Every X minutes
+        minutes=int(args.tts),  # Every X minutes
         id="collect_data_job",  # Job identifier
         misfire_grace_time=10,  # Handle job misfires gracefully
         args=[args],
@@ -118,7 +118,7 @@ def run():
     )
 
     # Schedule jobs
-    initialize_telemetry()
+    initialize_telemetry(*redis, args.wallets)
     asyncio.run(schedule_jobs(args))
 
 
