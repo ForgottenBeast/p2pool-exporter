@@ -75,7 +75,7 @@ def miner_rewards_callback(options: CallbackOptions, miners):
     global redis_client
     for miner in miners:
         data = redis_client.get(f"miner:{miner}")
-        attrs = {"mineer": miner}
+        attrs = {"miner": miner}
         parsed = {}
         if data:
             parsed = json.loads(data)
