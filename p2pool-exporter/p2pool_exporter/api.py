@@ -22,8 +22,8 @@ def configure_redis(host, port):
 
 @traced(**traced_conf)
 async def query_api(session, endpoint):
-    with session.get(endpoint) as response:
-        result = response.json()  # Await the actual response body (as JSON)
+    async with session.get(endpoint) as response:
+        result = await response.json()  # Await the actual response body (as JSON)
 
     if "status" in result and result.status != 200:
         raise Exception("error querying")
@@ -69,6 +69,8 @@ async def get_sideblocks(session, api, miner):
             ]
         ),
     }
+
+    logger.info("retrieved miner performance", extra = new_data)
 
     if cur_data:
         new_data = json.loads(cur_data) | new_data
