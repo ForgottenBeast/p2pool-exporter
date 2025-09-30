@@ -45,7 +45,7 @@ async def get_miner_info(session, api, miner):
     cur_data = await redis_client.get(f"miner:{miner}")
     if cur_data:
         new_data = json.loads(cur_data) | new_data
-    await redis_client.set(f"miner:{miner}", json.dumps(new_data), ex=300)
+    await redis_client.set(f"miner:{miner}", json.dumps(new_data), ex=600)
 
 
 @traced(tracer=service_name)
@@ -74,14 +74,14 @@ async def get_sideblocks(session, api, miner):
 
     if cur_data:
         new_data = json.loads(cur_data) | new_data
-    await redis_client.set(f"miner:{miner}", json.dumps(new_data), ex=300)
+    await redis_client.set(f"miner:{miner}", json.dumps(new_data), ex=600)
 
 
 @traced(tracer=service_name)
 async def get_payouts(session, api, miner):
     response = await query_api(
         session,
-        "{}{}/{}?search_limit=0".format(api, "/api/payouts", miner),
+        "{}{}/{}?search_limit=1".format(api, "/api/payouts", miner),
     )
     logger.info(
         {
@@ -94,14 +94,20 @@ async def get_payouts(session, api, miner):
             }
         }
     )
-    total_payouts = sum([x["coinbase_reward"] for x in response])
 
-    cur_data = await redis_client.get(f"miner:{miner}")
-    new_data = {"payouts": total_payouts}
+    cur_data = await redis_client.get(f"miner:{miner}") or {}
+    new_data = {"last_payout_id": response[0]["main_id"]}
     if cur_data:
-        new_data = json.loads(cur_data) | new_data
+        cur_data = json.loads(cur_data)
+        prev_payout = cur_data.get("payouts") or 0
+        prev_payout_id = cur_data.get("last_payout_id") or 0
 
-    await redis_client.set(f"miner:{miner}", json.dumps(new_data), ex=300)
+        if prev_payout_id != new_data["last_payout_id"]:
+            new_data["payouts"] = prev_payout + response[0]["coinbase_reward"]
+
+        new_data = cur_data | new_data
+
+    await redis_client.set(f"miner:{miner}", json.dumps(new_data), ex=600)
 
 
 @traced(tracer=service_name)
