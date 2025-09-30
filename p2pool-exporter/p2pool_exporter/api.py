@@ -45,7 +45,7 @@ async def get_miner_info(session, api, miner):
     cur_data = await redis_client.get(f"miner:{miner}")
     if cur_data:
         new_data = json.loads(cur_data) | new_data
-    await redis_client.set(f"miner:{miner}", json.dumps(new_data), ex=600)
+    await redis_client.set(f"miner:{miner}", json.dumps(new_data), ex=3600)
 
 
 @traced(tracer=service_name)
@@ -74,7 +74,7 @@ async def get_sideblocks(session, api, miner):
 
     if cur_data:
         new_data = json.loads(cur_data) | new_data
-    await redis_client.set(f"miner:{miner}", json.dumps(new_data), ex=600)
+    await redis_client.set(f"miner:{miner}", json.dumps(new_data), ex=3600)
 
 
 @traced(tracer=service_name)
@@ -107,7 +107,7 @@ async def get_payouts(session, api, miner):
 
         new_data = cur_data | new_data
 
-    await redis_client.set(f"miner:{miner}", json.dumps(new_data), ex=600)
+    await redis_client.set(f"miner:{miner}", json.dumps(new_data), ex=3600)
 
 
 @traced(tracer=service_name)
