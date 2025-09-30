@@ -14,21 +14,24 @@ traced_conf = get_traced_conf()
 
 redis_client = None
 
+
 def configure_redis(host, port):
     global redis_client
     redis_client = redis.Redis(host=host, port=port, db=0, protocol=3)
 
+
 @traced(**traced_conf)
-async def query_api(session,endpoint, metrics):
-        with session.get(endpoint) as response:
-            result = response.json()  # Await the actual response body (as JSON)
+async def query_api(session, endpoint, metrics):
+    with session.get(endpoint) as response:
+        result = response.json()  # Await the actual response body (as JSON)
 
-        if "status" in result and result.status != 200:
-            raise Exception("error querying")
+    if "status" in result and result.status != 200:
+        raise Exception("error querying")
 
-        return result
+    return result
 
-@traced(tracer = service_name)
+
+@traced(tracer=service_name)
 async def get_miner_info(session, api, miner, metrics):
     response = await query_api(
         session, "{}{}/{}".format(api, "/api/miner_info", miner), metrics
@@ -39,14 +42,15 @@ async def get_miner_info(session, api, miner, metrics):
         total_shares += s["shares"]
         total_shares += s["uncles"]
 
-    new_data = {"last_share_height":response["last_share_height"]}
-    logger.info("retrieved miner data", extra = new_data | {"miner":miner})
+    new_data = {"last_share_height": response["last_share_height"]}
+    logger.info("retrieved miner data", extra=new_data | {"miner": miner})
     cur_data = await redis_client.get(f"miner:{miner}")
     if cur_data:
         new_data = json.loads(cur_data) | new_data
-    await redis_client.set(f"miner:{miner}",json.dumps(new_data), ex=300)
+    await redis_client.set(f"miner:{miner}", json.dumps(new_data), ex=300)
 
-@traced(tracer = service_name)
+
+@traced(tracer=service_name)
 async def get_sideblocks(session, api, miner, metrics):
     response = await query_api(
         session, "{}{}/{}".format(api, "/api/side_blocks_in_window", miner), metrics
@@ -58,20 +62,22 @@ async def get_sideblocks(session, api, miner, metrics):
             total_blocks += 1
 
     cur_data = await redis_client.get(f"miner:{miner}")
-    new_data = {"total_blocks":total_blocks,
-                "hashrate":        estimate_hashrate(
+    new_data = {
+        "total_blocks": total_blocks,
+        "hashrate": estimate_hashrate(
             [
                 {"timestamp": s["timestamp"], "difficulty": s["difficulty"]}
                 for s in response
             ]
-        )}
+        ),
+    }
 
     if cur_data:
         new_data = json.loads(cur_data) | new_data
-    await redis_client.set(f"miner:{miner}",json.dumps(new_data), ex = 300)
+    await redis_client.set(f"miner:{miner}", json.dumps(new_data), ex=300)
 
 
-@traced(tracer = service_name)
+@traced(tracer=service_name)
 async def get_payouts(session, api, miner, metrics):
     response = await query_api(
         session,
@@ -92,14 +98,14 @@ async def get_payouts(session, api, miner, metrics):
     total_payouts = sum([x["coinbase_reward"] for x in response])
 
     cur_data = await redis_client.get(f"miner:{miner}")
-    new_data = {"payouts":total_payouts}
+    new_data = {"payouts": total_payouts}
     if cur_data:
         new_data = json.loads(cur_data) | new_data
 
-    await redis_client.set(f"miner:{miner}",json.dumps(new_data), ex = 300)
+    await redis_client.set(f"miner:{miner}", json.dumps(new_data), ex=300)
 
 
-@traced(tracer = service_name)
+@traced(tracer=service_name)
 async def collect_api_data(args, metrics):
     # Create the session once and pass it to each function call
     async with aiohttp.ClientSession() as session:
@@ -123,15 +129,26 @@ async def collect_api_data(args, metrics):
         await asyncio.gather(*tasks)
 
 
-
-@traced(tracer = service_name)
-async def websocket_listener(url, metrics):
-    ws_event_counter = get_counter(frozenset({"name":"p2pool_expoter_ws_event_counter"}.items()))
-    main_difficulty_g = get_gauge(frozenset({"name":"p2pool_exporter_main_difficulty"}.items()))
-    pool_difficulty_g = get_gauge(frozenset({"name":"p2pool_exporter_pool_difficulty"}.items()))
-    found_blocks_c = get_counter(frozenset({"name":"p2pool_exporter_found_blocks"}.items()))
-    side_blocks_c = get_counter(frozenset({"name":"p2pool_exporter_side_blocks"}.items()))
-    orphaned_blocks_c = get_counter(frozenset({"name":"p2pool_exporter_orphaned_blocks"}.items()))
+@traced(tracer=service_name)
+async def websocket_listener(url):
+    ws_event_counter = get_counter(
+        frozenset({"name": "p2pool_expoter_ws_event_counter"}.items())
+    )
+    main_difficulty_g = get_gauge(
+        frozenset({"name": "p2pool_exporter_main_difficulty"}.items())
+    )
+    pool_difficulty_g = get_gauge(
+        frozenset({"name": "p2pool_exporter_pool_difficulty"}.items())
+    )
+    found_blocks_c = get_counter(
+        frozenset({"name": "p2pool_exporter_found_blocks"}.items())
+    )
+    side_blocks_c = get_counter(
+        frozenset({"name": "p2pool_exporter_side_blocks"}.items())
+    )
+    orphaned_blocks_c = get_counter(
+        frozenset({"name": "p2pool_exporter_orphaned_blocks"}.items())
+    )
 
     endpoint = "{}/api/events".format(url)
     async with aiohttp.ClientSession() as session:
@@ -148,9 +165,7 @@ async def websocket_listener(url, metrics):
                                 )
 
                             if "difficulty" in msg["side_block"]:
-                                pool_difficulty_g.set(
-                                    msg["side_block"]["difficulty"]
-                                )
+                                pool_difficulty_g.set(msg["side_block"]["difficulty"])
                             side_blocks_c.add(1)
 
                         elif msg["type"] == "found_block":
@@ -158,9 +173,7 @@ async def websocket_listener(url, metrics):
                             main_difficulty_g.set(
                                 msg["found_block"]["main_block"]["difficulty"],
                             )
-                            pool_difficulty_g.set(
-                                msg["found_block"]["difficulty"]
-                            )
+                            pool_difficulty_g.set(msg["found_block"]["difficulty"])
                         elif msg["type"] == "orphaned_block":
                             orphaned_blocks_c.add(1)
                         else:

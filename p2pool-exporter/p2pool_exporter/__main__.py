@@ -1,16 +1,18 @@
 from observlib import configure_telemetry
+import os
 from .api import collect_api_data, websocket_listener, configure_redis
 import argparse
 import asyncio
 from .telemetry import initialize_telemetry
 from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from logging import getLogger
+
+logger = getLogger(__name__)
 
 
 async def schedule_jobs(args):
     # Create the scheduler
-
-    metrics = get_metrics()
 
     scheduler = AsyncIOScheduler()
 
@@ -21,21 +23,21 @@ async def schedule_jobs(args):
         minutes=args.tts,  # Every X minutes
         id="collect_data_job",  # Job identifier
         misfire_grace_time=10,  # Handle job misfires gracefully
-        args=[args, metrics],
+        args=[args],
     )
 
     # Add a listener to log job execution outcomes
     def job_listener(event):
         if event.exception:
-            l.error(f"Job {event.job_id} failed with exception: {event.exception}")
+            logger.error(f"Job {event.job_id} failed with exception: {event.exception}")
         else:
-            l.debug(f"Job {event.job_id} succeeded")
+            logger.debug(f"Job {event.job_id} succeeded")
 
     scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
 
     # Start the scheduler and run the asyncio loop together
     scheduler.start()
-    await websocket_listener(args.endpoint, metrics)
+    await websocket_listener(args.endpoint)
 
 
 def run():
