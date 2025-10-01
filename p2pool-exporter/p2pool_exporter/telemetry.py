@@ -71,7 +71,7 @@ def miner_info_callback(options: CallbackOptions, miners):
         yield Observation(value, attributes=attrs | {"metric": "hashrate"})
 
         value = parsed.get("last_share_timestamp") or 0
-        yield Observation(value, attribute=attrs | {"metric": "last_share_timestamp"})
+        yield Observation(value, attributes=attrs | {"metric": "last_share_timestamp"})
 
 
 def miner_rewards_callback(options: CallbackOptions, miners):
