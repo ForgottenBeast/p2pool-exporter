@@ -130,20 +130,11 @@ async def websocket_listener(url):
     ws_event_counter = get_counter(
         frozenset({"name": "p2pool_expoter_ws_event_counter"}.items())
     )
-    main_difficulty_g = get_gauge(
-        frozenset({"name": "p2pool_exporter_main_difficulty"}.items())
+    difficulty_g = get_gauge(
+        frozenset({"name": "p2pool_exporter_difficulty"}.items())
     )
-    pool_difficulty_g = get_gauge(
-        frozenset({"name": "p2pool_exporter_pool_difficulty"}.items())
-    )
-    found_blocks_c = get_counter(
-        frozenset({"name": "p2pool_exporter_found_blocks"}.items())
-    )
-    side_blocks_c = get_counter(
-        frozenset({"name": "p2pool_exporter_side_blocks"}.items())
-    )
-    orphaned_blocks_c = get_counter(
-        frozenset({"name": "p2pool_exporter_orphaned_blocks"}.items())
+    blocks_c = get_counter(
+        frozenset({"name": "p2pool_exporter_blocks"}.items())
     )
 
     endpoint = "{}/api/events".format(url)
@@ -156,22 +147,22 @@ async def websocket_listener(url):
                         ws_event_counter.add(1)
                         if msg["type"] == "side_block":
                             if "main_difficulty" in msg["side_block"]:
-                                main_difficulty_g.set(
-                                    msg["side_block"]["main_difficulty"]
+                                difficulty_g.set(
+                                        msg["side_block"]["main_difficulty"], attributes = {"pool":"main"},
                                 )
 
                             if "difficulty" in msg["side_block"]:
-                                pool_difficulty_g.set(msg["side_block"]["difficulty"])
-                            side_blocks_c.add(1)
+                                difficulty_g.set(msg["side_block"]["difficulty"], attributes = {"pool":"side"})
+                            blocks_c.add(1, attributes = {"type":"sideblock"})
 
                         elif msg["type"] == "found_block":
-                            found_blocks_c.add(1)
-                            main_difficulty_g.set(
-                                msg["found_block"]["main_block"]["difficulty"],
+                            blocks_c.add(1, attributes = {"type":"found"})
+                            difficulty_g.set(
+                                    msg["found_block"]["main_block"]["difficulty"],attributes = {"pool":"main"},
                             )
-                            pool_difficulty_g.set(msg["found_block"]["difficulty"])
+                            difficulty_g.set(msg["found_block"]["difficulty"], attributes = {"pool":"side"})
                         elif msg["type"] == "orphaned_block":
-                            orphaned_blocks_c.add(1)
+                            blocks_c.add(1, attributes = {"type":"orphaned"})
                         else:
                             logger.warn(
                                 {
