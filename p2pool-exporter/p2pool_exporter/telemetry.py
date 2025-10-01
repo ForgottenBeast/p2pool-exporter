@@ -70,6 +70,9 @@ def miner_info_callback(options: CallbackOptions, miners):
         value = parsed.get("hashrate") or 0
         yield Observation(value, attributes=attrs | {"metric": "hashrate"})
 
+        value = parsed.get("last_share_timestamp") or 0
+        yield Observation(value, attribute=attrs | {"metric": "last_share_timestamp"})
+
 
 def miner_rewards_callback(options: CallbackOptions, miners):
     global redis_client

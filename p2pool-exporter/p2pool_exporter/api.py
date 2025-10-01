@@ -55,13 +55,17 @@ async def get_sideblocks(session, api, miner):
     )
 
     total_blocks = 0
+    last_timestamp = 0
     for b in response:
         if isinstance(b, dict):
             total_blocks += 1
+            if b["timestamp"] > last_timestamp:
+                last_timestamp = b["timestamp"]
 
     cur_data = await redis_client.get(f"miner:{miner}")
     new_data = {
         "total_blocks": total_blocks,
+        "last_share_timestamp": last_timestamp,
         "hashrate": estimate_hashrate(
             [
                 {"timestamp": s["timestamp"], "difficulty": s["difficulty"]}
@@ -128,7 +132,7 @@ async def collect_api_data(args):
 @traced(tracer=service_name)
 async def websocket_listener(url):
     ws_event_counter = get_counter(
-        frozenset({"name": "p2pool_expoter_ws_event_counter"}.items())
+        frozenset({"name": "p2pool_exporter_ws_event_counter"}.items())
     )
     difficulty_g = get_gauge(frozenset({"name": "p2pool_exporter_difficulty"}.items()))
     blocks_c = get_counter(frozenset({"name": "p2pool_exporter_blocks"}.items()))
