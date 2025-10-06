@@ -75,6 +75,17 @@ def run():
         default=5,
         action="store",
     )
+
+    parser.add_argument(
+        "-e",
+        "--exchange-rate",
+        help="currencies for exchange rate tracking",
+        dest="exchange_rate",
+        default=["EUR"],
+        nargs="+",
+        action="store",
+    )
+
     parser.add_argument(
         "-d",
         "--devmode",
@@ -118,7 +129,7 @@ def run():
     )
 
     # Schedule jobs
-    initialize_telemetry(*redis, args.wallets)
+    initialize_telemetry(*redis, args.wallets, args.exchange_rate)
     asyncio.run(schedule_jobs(args))
 
 

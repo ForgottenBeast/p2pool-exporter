@@ -1,4 +1,5 @@
 from functools import lru_cache, partial
+import requests
 import json
 import redis
 from opentelemetry.metrics import get_meter, CallbackOptions, Observation
@@ -55,6 +56,15 @@ AsyncioInstrumentor().instrument()
 redis_client = None
 
 
+def exchange_rate_callback(options: CallbackOptions, currencies):
+    rates = requests.get(
+        "https://min-api.cryptocompare.com/data/price",
+        params={"fsym": "XMR", "tsyms": ",".join(currencies)},
+    ).json()
+    for c, r in rates.items():
+        yield Observation(r, attributes={"currency": c})
+
+
 def miner_info_callback(options: CallbackOptions, miners):
     global redis_client
     for miner in miners:
@@ -89,7 +99,7 @@ def miner_rewards_callback(options: CallbackOptions, miners):
         yield Observation(payouts, attributes=attrs | {"metric": "payouts"})
 
 
-def initialize_telemetry(redis_host, redis_port, miners):
+def initialize_telemetry(redis_host, redis_port, miners, currencies):
     global redis_client
     redis_client = redis.Redis(host=redis_host, port=redis_port, db=0, protocol=3)
     meter = get_meter("p2pool-exporter")
@@ -102,4 +112,9 @@ def initialize_telemetry(redis_host, redis_port, miners):
         name="p2pool_exporter_miner_rewards",
         callbacks=[partial(miner_rewards_callback, miners=miners)],
         description="miner rewards info",
+    )
+    meter.create_observable_gauge(
+        name="p2pool_exporter_exchange_rate",
+        callbacks=[partial(exchange_rate_callback, currencies=currencies)],
+        description="exchange rates",
     )
