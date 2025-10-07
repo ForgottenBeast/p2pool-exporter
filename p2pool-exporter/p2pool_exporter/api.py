@@ -183,4 +183,4 @@ async def websocket_listener(url):
                 logger.warn(
                     {"message": "error connecting to the websocket API: {}".format(ex)}
                 )
-                raise
+                await asyncio.sleep(5)
