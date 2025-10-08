@@ -63,6 +63,7 @@ async def get_sideblocks(session, api, miner):
                 last_timestamp = b["timestamp"]
 
     cur_data = await redis_client.get(f"miner:{miner}")
+
     new_data = {
         "total_blocks": total_blocks,
         "last_share_timestamp": last_timestamp,
@@ -77,7 +78,12 @@ async def get_sideblocks(session, api, miner):
     logger.info("retrieved miner performance", extra=new_data)
 
     if cur_data:
-        new_data = json.loads(cur_data) | new_data
+        data = json.loads(cur_data)
+        prev_timestamp = data.get("last_share_timestamp")
+        # also checks if prev timestamp is 0
+        if prev_timestamp and prev_timestamp >= last_timestamp:
+            new_data["last_share_timestamp"] = prev_timestamp
+        new_data = data | new_data
     await redis_client.set(f"miner:{miner}", json.dumps(new_data), ex=3600)
 
 
