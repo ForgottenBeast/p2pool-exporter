@@ -121,6 +121,28 @@ async def get_payouts(session, api, miner):
 
 
 @traced(tracer=service_name)
+async def get_exchange_rates(session, currencies):
+    global redis_client
+
+    async with session.get(
+        "https://min-api.cryptocompare.com/data/price",
+        params={"fsym": "XMR", "tsyms": ",".join(currencies)},
+    ) as response:
+        result = await response.json()  # Await the actual response body (as JSON)
+
+    if "status" in result and result.status != 200:
+        logger.error(
+            f"error getting exchange rate: {result}", extra={"status": result.status}
+        )
+        return
+    elif "RateLimit" in result:
+        logger.error("rate limited on exchange rate")
+        return
+
+    await redis_client.set("exchange_rates", json.dumps(result), ex=3600)
+
+
+@traced(tracer=service_name)
 async def collect_api_data(args):
     # Create the session once and pass it to each function call
     async with aiohttp.ClientSession() as session:
@@ -129,6 +151,7 @@ async def collect_api_data(args):
             [get_miner_info(session, args.endpoint, miner) for miner in args.wallets]
             + [get_sideblocks(session, args.endpoint, miner) for miner in args.wallets]
             + [get_payouts(session, args.endpoint, miner) for miner in args.wallets]
+            + [get_exchange_rates(session, args.exchange_rate)]
         )
 
         # Await all tasks (don't forget this!)

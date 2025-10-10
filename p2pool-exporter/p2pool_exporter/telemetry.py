@@ -1,5 +1,4 @@
 from functools import lru_cache, partial
-import requests
 import json
 import redis
 from opentelemetry.metrics import get_meter, CallbackOptions, Observation
@@ -57,12 +56,13 @@ redis_client = None
 
 
 def exchange_rate_callback(options: CallbackOptions, currencies):
-    rates = requests.get(
-        "https://min-api.cryptocompare.com/data/price",
-        params={"fsym": "XMR", "tsyms": ",".join(currencies)},
-    ).json()
-    for c, r in rates.items():
-        yield Observation(r, attributes={"currency": c})
+    global redis_client
+    rates = redis_client.get("exchange_rates")
+    if rates:
+        rates = json.loads(rates)
+        if "Message" not in rates:
+            for c, r in rates.items():
+                yield Observation(r, attributes={"currency": c})
 
 
 def miner_info_callback(options: CallbackOptions, miners):
