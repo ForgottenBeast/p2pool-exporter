@@ -83,6 +83,9 @@ def miner_info_callback(options: CallbackOptions, miners):
         value = parsed.get("last_share_timestamp") or 0
         yield Observation(value, attributes=attrs | {"metric": "last_share_timestamp"})
 
+        raffle_rates = parsed.get("raffle_rates") or {"hour":0.0, "day": 0.0}
+        yield Observation(raffle_rates["hour"], attributes = attrs | {"metric":"raffle_rates_1_hour"})
+        yield Observation(raffle_rates["day"], attributes = attrs | {"metric":"raffle_rates_1_day"})
 
 def miner_rewards_callback(options: CallbackOptions, miners):
     global redis_client

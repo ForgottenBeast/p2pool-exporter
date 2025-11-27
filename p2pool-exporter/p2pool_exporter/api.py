@@ -1,3 +1,5 @@
+from bs4 import BeautifulSoup
+import re
 import redis.asyncio as redis
 import aiohttp
 import asyncio
@@ -141,6 +143,25 @@ async def get_exchange_rates(session, currencies):
 
     await redis_client.set("exchange_rates", json.dumps(result), ex=3600)
 
+@traced(tracer=service_name)
+async def get_raffle_rates(session, miner):
+    parsed = None
+    async with session.get("https://xmrvsbeast.com/cgi-bin/p2pool_bonus_history.cgi",params = {"address":miner}) as response:
+        result = await response.text()  # Await the actual response body (as JSON)
+        parsed = BeautifulSoup(result,features="html.parser")
+
+    if parsed:
+        raffle_state = parsed.body.find('p', attrs={"style":"color:#40a340;"}).text
+        match = re.match('.*avg: (?P<one_hour>[0-9]+.[0-9]+)(?P<one_hour_unit>[A-z])H/s.*avg: (?P<one_day>[0-9]+.[0-9]+)(?P<one_day_unit>[A-z])H/s',raffle_state)
+        one_hour_rate = float(match.group("one_hour")) * 1000.0
+        one_day_rate = float(match.group("one_day")) * 1000.0
+        
+        cur_data = await redis_client.get(f"miner:{miner}") or {}
+        cur_data = json.loads(cur_data)
+        new_data = {"raffle_rates": {"hour":one_hour_rate,"day":one_day_rate}}
+        new_data = cur_data | new_data
+
+        await redis_client.set(f"miner:{miner}", json.dumps(new_data), ex=3600)
 
 @traced(tracer=service_name)
 async def collect_api_data(args):
@@ -152,9 +173,9 @@ async def collect_api_data(args):
             + [get_sideblocks(session, args.endpoint, miner) for miner in args.wallets]
             + [get_payouts(session, args.endpoint, miner) for miner in args.wallets]
             + [get_exchange_rates(session, args.exchange_rate)]
+            + [get_raffle_rates(session, miner) for miner in args.wallets]
         )
 
-        # Await all tasks (don't forget this!)
         await asyncio.gather(*tasks)
 
 

@@ -1,6 +1,6 @@
 [project]
 name = "p2pool-exporter"
-version = "1.2.4"
+version = "1.3.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -8,6 +8,7 @@ dependencies = [
     "aiohttp>=3.11.16",
     "apscheduler>=3.11.0",
     "asyncio>=3.4.3",
+    "beautifulsoup4>=4.14.2",
     "observlib",
     "opentelemetry-api>=1.32.0",
     "opentelemetry-exporter-otlp>=1.32.0",
