@@ -40,19 +40,24 @@ uv run p2pool-exporter -a <api-endpoint> -w <wallet1> <wallet2> ...
 ### Running the Exporter
 
 ```bash
-# Basic usage
-p2pool-exporter -a https://p2pool.observer/mini -w <wallet-address>
+# Basic usage with local P2Pool node (recommended)
+p2pool-exporter -a http://localhost:3333 -w <wallet-address>
 
 # With all options
 p2pool-exporter \
-  -a https://p2pool.observer/mini \
+  -a http://localhost:3333 \
   -w <wallet1> <wallet2> \
   -l INFO \
   -t 5 \
   -e EUR USD \
   -P 9093 \
   -d  # Enable dev mode
+
+# Alternative: Using public observer (may have bot protection issues)
+# p2pool-exporter -a https://p2pool.observer/mini -w <wallet-address>
 ```
+
+**Note**: As of Feb 2026, p2pool.observer has implemented bot protection that blocks websocket connections. Using a local P2Pool node is recommended.
 
 ### Required Environment Variables
 
@@ -196,6 +201,7 @@ The project uses Snowfall Lib for organizing Nix flakes:
 - The exporter requires both a working P2Pool API endpoint and Redis instance
 - WebSocket connection has auto-reconnect with 5-second backoff on failures
 - Last share timestamp has special logic to prevent reset to 0 (api.py:86)
+- **API Endpoint**: Use a local P2Pool node (localhost:3333) instead of p2pool.observer to avoid bot protection issues that block websocket connections (see bd-3hu)
 
 <!-- bv-agent-instructions-v1 -->
 
