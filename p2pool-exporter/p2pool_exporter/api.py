@@ -145,23 +145,44 @@ async def get_exchange_rates(session, currencies):
 
 @traced(tracer=service_name)
 async def get_raffle_rates(session, miner):
-    parsed = None
-    async with session.get("https://xmrvsbeast.com/cgi-bin/p2pool_bonus_history.cgi",params = {"address":miner}) as response:
-        result = await response.text()  # Await the actual response body (as JSON)
-        parsed = BeautifulSoup(result,features="html.parser")
+    try:
+        async with session.get("https://xmrvsbeast.com/cgi-bin/p2pool_bonus_history.cgi", params={"address": miner}) as response:
+            result = await response.text()
+            parsed = BeautifulSoup(result, features="html.parser")
 
-    if parsed:
-        raffle_state = parsed.body.find('p', attrs={"style":"color:#40a340;"}).text
-        match = re.match('.*avg: (?P<one_hour>[0-9]+.[0-9]+)(?P<one_hour_unit>[A-z])H/s.*avg: (?P<one_day>[0-9]+.[0-9]+)(?P<one_day_unit>[A-z])H/s',raffle_state)
+        if not parsed or not parsed.body:
+            logger.error(f"Failed to parse raffle rates HTML for miner {miner}")
+            return
+
+        raffle_element = parsed.body.find('p', attrs={"style": "color:#40a340;"})
+        if not raffle_element:
+            logger.error(f"Raffle rates element not found for miner {miner}. Website structure may have changed.")
+            return
+
+        raffle_state = raffle_element.text
+        match = re.match(r'.*avg: (?P<one_hour>[0-9]+\.[0-9]+)(?P<one_hour_unit>[A-z])H/s.*avg: (?P<one_day>[0-9]+\.[0-9]+)(?P<one_day_unit>[A-z])H/s', raffle_state)
+
+        if not match:
+            logger.error(f"Raffle rates regex pattern did not match for miner {miner}. Text: {raffle_state}")
+            return
+
         one_hour_rate = float(match.group("one_hour")) * 1000.0
         one_day_rate = float(match.group("one_day")) * 1000.0
-        
-        cur_data = await redis_client.get(f"miner:{miner}") or {}
-        cur_data = json.loads(cur_data)
-        new_data = {"raffle_rates": {"hour":one_hour_rate,"day":one_day_rate}}
+
+        logger.info(f"Retrieved raffle rates for miner {miner}: 1h={one_hour_rate}, 1d={one_day_rate}")
+
+        cur_data = await redis_client.get(f"miner:{miner}")
+        if cur_data:
+            cur_data = json.loads(cur_data)
+        else:
+            cur_data = {}
+
+        new_data = {"raffle_rates": {"hour": one_hour_rate, "day": one_day_rate}}
         new_data = cur_data | new_data
 
         await redis_client.set(f"miner:{miner}", json.dumps(new_data), ex=3600)
+    except Exception as e:
+        logger.error(f"Error fetching raffle rates for miner {miner}: {e}", exc_info=True)
 
 @traced(tracer=service_name)
 async def collect_api_data(args):
