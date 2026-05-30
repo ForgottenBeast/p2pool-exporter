@@ -1,6 +1,6 @@
 from observlib import configure_telemetry
 import os
-from .api import collect_api_data, websocket_listener, configure_redis
+from .api import collect_api_data, websocket_listener, difficulty_file_poller, configure_redis
 import argparse
 import asyncio
 from .telemetry import initialize_telemetry
@@ -37,7 +37,10 @@ async def schedule_jobs(args):
 
     # Start the scheduler and run the asyncio loop together
     scheduler.start()
-    await websocket_listener(args.endpoint)
+    tasks = [asyncio.create_task(websocket_listener(args.endpoint))]
+    if args.data_api:
+        tasks.append(asyncio.create_task(difficulty_file_poller(args.data_api)))
+    await asyncio.gather(*tasks)
 
 
 def run():
@@ -83,6 +86,14 @@ def run():
         dest="exchange_rate",
         default=["EUR"],
         nargs="+",
+        action="store",
+    )
+
+    parser.add_argument(
+        "--data-api",
+        help="Path to p2pool --data-api directory for local difficulty polling",
+        dest="data_api",
+        default=None,
         action="store",
     )
 

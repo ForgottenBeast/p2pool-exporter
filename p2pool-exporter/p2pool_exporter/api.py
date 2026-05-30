@@ -4,6 +4,7 @@ import redis.asyncio as redis
 import aiohttp
 import asyncio
 import json
+import os
 from logging import getLogger
 from .telemetry import get_traced_conf, get_counter, get_gauge
 from .utils import estimate_hashrate
@@ -213,7 +214,14 @@ async def websocket_listener(url):
         while True:
             try:
                 async with session.ws_connect(endpoint) as ws:
-                    async for wsmsg in ws:
+                    while True:
+                        try:
+                            wsmsg = await asyncio.wait_for(ws.receive(), timeout=60)
+                        except asyncio.TimeoutError:
+                            logger.warn({"message": "websocket silent for 60s, reconnecting"})
+                            break
+                        if wsmsg.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.ERROR, aiohttp.WSMsgType.CLOSED):
+                            break
                         msg = wsmsg.json()
                         ws_event_counter.add(1)
                         if msg["type"] == "side_block":
@@ -255,3 +263,26 @@ async def websocket_listener(url):
                     {"message": "error connecting to the websocket API: {}".format(ex)}
                 )
                 await asyncio.sleep(5)
+
+
+async def difficulty_file_poller(data_api_path: str):
+    difficulty_g = get_gauge(frozenset({"name": "p2pool_exporter_difficulty"}.items()))
+    network_stats = os.path.join(data_api_path, "network", "stats")
+    pool_stats = os.path.join(data_api_path, "pool", "stats")
+    while True:
+        try:
+            with open(network_stats) as f:
+                data = json.load(f)
+                difficulty_g.set(data["difficulty"], attributes={"pool": "main"})
+        except Exception as ex:
+            logger.warn({"message": "error reading network stats: {}".format(ex)})
+        try:
+            with open(pool_stats) as f:
+                data = json.load(f)
+                difficulty_g.set(
+                    data["pool_statistics"]["sidechainDifficulty"],
+                    attributes={"pool": "side"},
+                )
+        except Exception as ex:
+            logger.warn({"message": "error reading pool stats: {}".format(ex)})
+        await asyncio.sleep(30)
