@@ -186,9 +186,20 @@ async def get_raffle_rates(session, miner):
         logger.error(f"Error fetching raffle rates for miner {miner}: {e}", exc_info=True)
 
 @traced(tracer=service_name)
+async def get_raffle_status(session, miner):
+    parsed = None
+    async with session.get("https://xmrvsbeast.com/p2pool/") as response:
+        result = await response.text()
+        parsed = BeautifulSoup(result, features = "html.parser")
+    if parsed:
+        raffle_state = parsed.body.select('body > div:nth-child(5) > code:nth-child(2) > a:nth-child(1)').text
+        
+
+
+@traced(tracer=service_name)
 async def collect_api_data(args):
     # Create the session once and pass it to each function call
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(trust_env=True) as session:
         # Query each miner wallet asynchronously
         tasks = (
             [get_miner_info(session, args.endpoint, miner) for miner in args.wallets]
