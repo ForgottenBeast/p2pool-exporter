@@ -62,7 +62,7 @@ def exchange_rate_callback(options: CallbackOptions, currencies):
         rates = json.loads(rates)
         if "Message" not in rates:
             for c, r in rates.items():
-                yield Observation(r, attributes={"currency": c})
+                yield Observation(float(r), attributes={"currency": c})
 
 
 def miner_info_callback(options: CallbackOptions, miners):
