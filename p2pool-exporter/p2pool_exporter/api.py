@@ -7,7 +7,7 @@ import json
 import os
 from logging import getLogger
 from .telemetry import get_traced_conf, get_counter, get_gauge
-from .utils import estimate_hashrate
+from .utils import estimate_hashrate, redis_auth_kwargs
 from observlib import traced
 
 logger = getLogger(__name__)
@@ -20,7 +20,9 @@ redis_client = None
 
 def configure_redis(host, port):
     global redis_client
-    redis_client = redis.Redis(host=host, port=port, db=0, protocol=3)
+    redis_client = redis.Redis(
+        host=host, port=port, db=0, protocol=3, **redis_auth_kwargs()
+    )
 
 
 @traced(**traced_conf)

@@ -4,6 +4,7 @@ import redis
 from opentelemetry.metrics import get_meter, CallbackOptions, Observation
 from opentelemetry.instrumentation.urllib import URLLibInstrumentor
 from opentelemetry.instrumentation.asyncio import AsyncioInstrumentor
+from .utils import redis_auth_kwargs
 
 
 def strip_query_params(url: str) -> str:
@@ -104,7 +105,9 @@ def miner_rewards_callback(options: CallbackOptions, miners):
 
 def initialize_telemetry(redis_host, redis_port, miners, currencies):
     global redis_client
-    redis_client = redis.Redis(host=redis_host, port=redis_port, db=0, protocol=3)
+    redis_client = redis.Redis(
+        host=redis_host, port=redis_port, db=0, protocol=3, **redis_auth_kwargs()
+    )
     meter = get_meter("p2pool-exporter")
     meter.create_observable_gauge(
         name="p2pool_exporter_miner_performance",
