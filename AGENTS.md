@@ -63,6 +63,7 @@ p2pool-exporter \
 
 - `OTEL_SERVER`: OpenTelemetry collector endpoint
 - `REDIS_SERVER` or `REDIS_DEV_SERVER`: Redis connection (format: `host:port`)
+- `REDIS_PASSWORD_FILE` (optional): path to a file holding the Redis password (trailing newline stripped; e.g. a systemd `LoadCredential` path). Unset = no AUTH.
 - `PYROSCOPE_SERVER` or `PYROSCOPE_DEV_SERVER`: Pyroscope profiling endpoint (optional, dev mode)
 
 ### Code Quality Tools (Available in Nix Shell)
@@ -77,6 +78,9 @@ ruff format p2pool-exporter/
 
 # Security scanning
 bandit -r p2pool-exporter/
+
+# Tests (pytest + hypothesis; not in the dev shell, e.g. via a nix-built venv)
+cd p2pool-exporter && python -m pytest tests
 
 # Nix code quality
 statix check .  # Linter
