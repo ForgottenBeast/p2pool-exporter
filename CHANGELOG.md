@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-10-09
+
+### Fixed
+
+- `get_payouts()` logged the full payout record at INFO level, including the
+  P2Pool API's `coinbase_private_key` field, writing it to the system journal
+  in cleartext. All logging of externally-sourced payloads (payouts, exchange
+  rate error responses) now passes through a recursive redaction helper that
+  replaces the value of any key matching `key`, `secret`, `password`, or
+  `token` (case-insensitive) with `<redacted>` before it reaches the logger.
+- Added property-based tests (pytest + hypothesis) asserting no sensitive
+  value survives redaction for arbitrary nested dict/list payloads.
+
 ## [1.4.0] - 2026-10-08
 
 ### Added
