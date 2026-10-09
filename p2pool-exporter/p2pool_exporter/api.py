@@ -7,7 +7,7 @@ import json
 import os
 from logging import getLogger
 from .telemetry import get_traced_conf, get_counter, get_gauge
-from .utils import estimate_hashrate, redis_auth_kwargs
+from .utils import estimate_hashrate, redis_auth_kwargs, redact_sensitive
 from observlib import traced
 
 logger = getLogger(__name__)
@@ -99,15 +99,17 @@ async def get_payouts(session, api, miner):
         "{}{}/{}?search_limit=1".format(api, "/api/payouts", miner),
     )
     logger.info(
-        {
-            "payout": {
-                "miner": miner,
-                "payout_id": response[0]["main_id"],
-                "amount": response[0]["coinbase_reward"],
-                "private_key": response[0]["coinbase_private_key"],
-                "timestamp": response[0]["timestamp"],
+        redact_sensitive(
+            {
+                "payout": {
+                    "miner": miner,
+                    "payout_id": response[0]["main_id"],
+                    "amount": response[0]["coinbase_reward"],
+                    "private_key": response[0]["coinbase_private_key"],
+                    "timestamp": response[0]["timestamp"],
+                }
             }
-        }
+        )
     )
 
     cur_data = await redis_client.get(f"miner:{miner}") or {}
@@ -137,7 +139,8 @@ async def get_exchange_rates(session, currencies):
 
     if "status" in result and result.status != 200:
         logger.error(
-            f"error getting exchange rate: {result}", extra={"status": result.status}
+            f"error getting exchange rate: {redact_sensitive(result)}",
+            extra={"status": result.status},
         )
         return
     elif "RateLimit" in result:
